@@ -1,0 +1,83 @@
+name:                compiladores
+version:             0.1.0.0
+github:              " compiladores-lcc/compiladores"
+license:             GPL-3
+author:              "Mauro Jaskelioff y Guido Martinez"
+maintainer:          "mauro@fceia.unr.edu.ar"
+copyright:           "2020 Mauro Jaskelioff y Guido Martinez"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/compiladores-lcc/compiladores#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- haskeline
+- parsec
+- pretty
+- mtl
+- exceptions
+- bytestring
+- filepath
+- binary
+- optparse-applicative
+- prettyprinter
+- prettyprinter-ansi-terminal
+- extra
+- text
+
+
+
+library:
+  source-dirs: src
+
+executables:
+  compiladores-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -fwarn-tabs
+    - -fwarn-unused-imports
+    - -fwarn-missing-signatures
+    - -fwarn-name-shadowing
+    - -fwarn-incomplete-patterns
+    dependencies:
+    - compiladores
+
+tests:
+  # Bytecode Test Suite
+  Bytecode:
+    main: Byte.hs
+    source-dirs: test
+    ghc-options:
+      - -main-is Byte
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - compiladores
+      - HTF
+  # C Backend Test Suite
+  C:
+    main: C.hs
+    source-dirs: test
+    ghc-options:
+      - -main-is C
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - compiladores
+      - HTF
