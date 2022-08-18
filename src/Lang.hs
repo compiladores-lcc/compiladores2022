@@ -67,13 +67,13 @@ data Decl a = Decl
 data Tm info var =
     V info var
   | Const info Const
-  | Lam info Name Ty (Scope One info var)
+  | Lam info Name Ty (Scope info var)
   | App info (Tm info var) (Tm info var)
   | Print info String (Tm info var)
   | BinaryOp info BinaryOp (Tm info var) (Tm info var)
-  | Fix info Name Ty Name Ty (Scope Two info var)
+  | Fix info Name Ty Name Ty (Scope2 info var)
   | IfZ info (Tm info var) (Tm info var) (Tm info var)
-  | Let info Name Ty (Tm info var)  (Scope One info var)
+  | Let info Name Ty (Tm info var)  (Scope info var)
   deriving (Show, Functor)
 
 
@@ -86,23 +86,17 @@ data Var =
   | Global Name
   deriving Show
 
-data One -- Etiqueta para marcar los Scopes con una variable que escapa
-     deriving Show
-data Two -- Etiqueta para marcar los Scopes con dos variables que escapan
-     deriving Show
-
 -- Scope es un término con una o dos variables que escapan.
-data Scope count info var where
-    Bound1 :: Tm info var -> Scope One info var
-    Bound2 :: Tm info var -> Scope Two info var
+newtype Scope info var = Sc1 (Tm info var)
+  deriving Functor
+newtype Scope2 info var = Sc2 (Tm info var)
+  deriving Functor
     
-instance (Show info, Show var) => Show (Scope x info var) where
-    show (Bound1 t) = "{"++show t++"}"
-    show (Bound2 t) = "{{"++show t++"}}"
+instance (Show info, Show var) => Show (Scope info var) where
+    show (Sc1 t) = "{"++show t++"}"
 
-instance Functor (Scope x info) where
-    fmap f (Bound1 t) = Bound1 (fmap f t)
-    fmap f (Bound2 t) = Bound2 (fmap f t)
+instance (Show info, Show var) => Show (Scope2 info var) where
+    show (Sc2 t) = "{{"++show t++"}}"
 
 -- | Obtiene la info en la raíz del término.
 getInfo :: Tm info var -> info
@@ -126,13 +120,13 @@ getPos = fst . getInfo
 mapInfo :: (a -> b) -> Tm a var -> Tm b var
 mapInfo f (V i x) = V (f i) x
 mapInfo f (Const i x) = Const (f i) x
-mapInfo f (Lam i x ty (Bound1 y)) = Lam (f i) x ty (Bound1 $ mapInfo f y)
+mapInfo f (Lam i x ty (Sc1 y)) = Lam (f i) x ty (Sc1 $ mapInfo f y)
 mapInfo f (App i x y ) = App (f i) (mapInfo f x) (mapInfo f y)
 mapInfo f (Print i msg y) = Print (f i) msg (mapInfo f y)
 mapInfo f (BinaryOp i x y z ) = BinaryOp (f i) x (mapInfo f y) (mapInfo f z)
-mapInfo f (Fix i x xty y yty (Bound2 z)) = Fix (f i) x xty y yty (Bound2 $ mapInfo f z)
+mapInfo f (Fix i x xty y yty (Sc2 z)) = Fix (f i) x xty y yty (Sc2 $ mapInfo f z)
 mapInfo f (IfZ i x y z) = IfZ (f i) (mapInfo f x) (mapInfo f y) (mapInfo f z)
-mapInfo f (Let i x xty y (Bound1 z)) = Let (f i) x xty (mapInfo f y) (Bound1 $ mapInfo f z)
+mapInfo f (Let i x xty y (Sc1 z)) = Let (f i) x xty (mapInfo f y) (Sc1 $ mapInfo f z)
 
 -- | Obtiene los nombres de variables (abiertas o globales) de un término.
 freeVars :: Tm info Var -> [Name]
@@ -140,11 +134,11 @@ freeVars tm = nubSort $ go tm [] where
   go (V _ (Free   v)          ) xs = v : xs
   go (V _ (Global v)          ) xs = v : xs
   go (V _ _                   ) xs = xs
-  go (Lam _ _ _ (Bound1 t)    ) xs = go t xs
+  go (Lam _ _ _ (Sc1 t)       ) xs = go t xs
   go (App   _ l r             ) xs = go l $ go r xs
   go (Print _ _ t             ) xs = go t xs
   go (BinaryOp _ _ t u        ) xs = go t $ go u xs
-  go (Fix _ _ _ _ _ (Bound2 t)) xs = go t xs
+  go (Fix _ _ _ _ _ (Sc2 t)   ) xs = go t xs
   go (IfZ _ c t e             ) xs = go c $ go t $ go e xs
   go (Const _ _               ) xs = xs
-  go (Let _ _ _ e (Bound1 t)  ) xs = go e (go t xs)
+  go (Let _ _ _ e (Sc1 t)     ) xs = go e (go t xs)
