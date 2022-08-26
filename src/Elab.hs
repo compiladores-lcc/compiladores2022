@@ -7,7 +7,7 @@ Maintainer  : mauro@fceia.unr.edu.ar
 Stability   : experimental
 
 Este módulo permite elaborar términos y declaraciones para convertirlas desde
-fully named (@NTerm) a locally closed (@Term@) 
+fully named (@STerm) a locally closed (@Term@)
 -}
 
 module Elab ( elab, elabDecl) where
