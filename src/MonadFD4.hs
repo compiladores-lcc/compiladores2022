@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
-{-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use <$>" #-}
 
@@ -25,11 +24,14 @@ module MonadFD4 (
   printFD4,
   setLastFile,
   getLastFile,
+  setInter,
+  getInter,
+  getMode,
+  getOpt,
   eraseLastFileDecls,
   failPosFD4,
   failFD4,
   addDecl,
-  addTy,
   catchErrors,
   MonadFD4,
   module Control.Monad.Except,
@@ -44,7 +46,6 @@ import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad.Reader
 import System.IO
-import Data.List (deleteFirstsBy)
 
 -- * La clase 'MonadFD4m'
 
@@ -70,11 +71,17 @@ getOpt = asks opt
 getMode :: MonadFD4 m => m Mode
 getMode = asks modo
 
+setInter :: MonadFD4 m => Bool -> m ()
+setInter b = modify (\s-> s {inter = b})
+
+getInter :: MonadFD4 m => m Bool
+getInter = gets inter
+
 printFD4 :: MonadFD4 m => String -> m ()
 printFD4 = liftIO . putStrLn
 
 setLastFile :: MonadFD4 m => FilePath -> m ()
-setLastFile filename = modify (\s -> s {lfile = filename})
+setLastFile filename = modify (\s -> s {lfile = filename , cantDecl = 0})
 
 getLastFile :: MonadFD4 m => m FilePath
 getLastFile = gets lfile
@@ -82,19 +89,12 @@ getLastFile = gets lfile
 addDecl :: MonadFD4 m => Decl TTerm -> m ()
 addDecl d = modify (\s -> s { glb = d : glb s, cantDecl = cantDecl s + 1 })
 
-addTy :: MonadFD4 m => Name -> Ty -> m ()
-addTy n ty = modify (\s -> s { tyEnv = (n,ty) : tyEnv s })
-
 eraseLastFileDecls :: MonadFD4 m => m ()
 eraseLastFileDecls = do
       s <- get
       let n = cantDecl s
-          (era,rem) = splitAt n (glb s)
-          tyEnv' = deleteTy (map declName era) (tyEnv s)
-      modify (\s -> s {glb = rem, cantDecl = 0, tyEnv = tyEnv'})
-   where deleteTy xs ps = deleteFirstsBy (\x y -> fst x == fst y) ps (map (, NatTy) xs)
-hasName :: Name -> Decl a -> Bool
-hasName nm (Decl { declName = nm' }) = nm == nm'
+          (_,rem) = splitAt n (glb s)
+      modify (\s -> s {glb = rem, cantDecl = 0})
 
 lookupDecl :: MonadFD4 m => Name -> m (Maybe TTerm)
 lookupDecl nm = do
@@ -102,6 +102,8 @@ lookupDecl nm = do
      case filter (hasName nm) (glb s) of
        (Decl { declBody=e }):_ -> return (Just e)
        [] -> return Nothing
+   where hasName :: Name -> Decl a -> Bool
+         hasName nm (Decl { declName = nm' }) = nm == nm'
 
 lookupTy :: MonadFD4 m => Name -> m (Maybe Ty)
 lookupTy nm = do
