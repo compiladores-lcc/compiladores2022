@@ -72,27 +72,13 @@ main = execParser opts >>= go
 
     go :: (Mode,Bool,[FilePath]) -> IO ()
     go (Interactive,opt,files) =
-              do runFD4 (runInputT defaultSettings (repl files)) (Conf opt Interactive)
-                 return ()
-    go (Typecheck,opt, files) =
-              runOrFail (Conf opt Typecheck) $ mapM_ (typecheckFile opt) files
-    -- go (InteractiveCEK,_, files) = undefined
-    -- go (Bytecompile,_, files) =
-    --           runOrFail $ mapM_ bytecompileFile files
-    -- go (RunVM,_,files) =
-    --           runOrFail $ mapM_ bytecodeRun files
-    -- go (CC,_, files) =
-    --           runOrFail $ mapM_ ccFile files
-    -- go (Canon,_, files) =
-    --           runOrFail $ mapM_ canonFile files 
-    -- go (Assembler,_, files) =
-    --           runOrFail $ mapM_ assemblerFile files
-    -- go (Build,_, files) =
-    --           runOrFail $ mapM_ buildFile files
+              runOrFail (Conf opt Interactive) (runInputT defaultSettings (repl files))
+    go (m,opt, files) =
+              runOrFail (Conf opt m) $ mapM_ compileFile files
 
 runOrFail :: Conf -> FD4 a -> IO a
 runOrFail c m = do
-  r <- runFD4 m c 
+  r <- runFD4 m c
   case r of
     Left err -> do
       liftIO $ hPrint stderr err
@@ -101,7 +87,7 @@ runOrFail c m = do
 
 repl :: (MonadFD4 m, MonadMask m) => [FilePath] -> InputT m ()
 repl args = do
-       lift $ catchErrors $ compileFiles args
+       lift $ catchErrors $ mapM_ compileFile args
        s <- lift get
        when (inter s) $ liftIO $ putStrLn
          (  "Entorno interactivo para FD4.\n"
@@ -117,13 +103,6 @@ repl args = do
                        b <- lift $ catchErrors $ handleCommand c
                        maybe loop (`when` loop) b
 
-compileFiles ::  MonadFD4 m => [FilePath] -> m ()
-compileFiles []     = return ()
-compileFiles (x:xs) = do
-        modify (\s -> s { lfile = x, inter = False })
-        compileFile x
-        compileFiles xs
-
 loadFile ::  MonadFD4 m => FilePath -> m [Decl STerm]
 loadFile f = do
     let filename = reverse(dropWhile isSpace (reverse f))
@@ -136,38 +115,40 @@ loadFile f = do
 
 compileFile ::  MonadFD4 m => FilePath -> m ()
 compileFile f = do
+    i <- getInter
+    setInter False
     printFD4 ("Abriendo "++f++"...")
-    let filename = reverse(dropWhile isSpace (reverse f))
-    x <- liftIO $ catch (readFile filename)
-               (\e -> do let err = show (e :: IOException)
-                         hPutStrLn stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err)
-                         return "")
-    decls <- parseIO filename program x
-    mapM_ handleDecl decls
-
-typecheckFile ::  MonadFD4 m => Bool -> FilePath -> m ()
-typecheckFile opt f = do
-    printFD4  ("Chequeando "++f)
     decls <- loadFile f
-    ppterms <- mapM (typecheckDecl >=> ppDecl) decls
-    -- ppterms' <- if opt then map optimize ppterms else ppterms 
-    mapM_ printFD4 ppterms  --'
+    mapM_ handleDecl decls
+    setInter i
 
 parseIO ::  MonadFD4 m => String -> P a -> String -> m a
 parseIO filename p x = case runP p x filename of
                   Left e  -> throwError (ParseErr e)
                   Right r -> return r
 
-typecheckDecl :: MonadFD4 m => Decl STerm -> m (Decl TTerm)
-typecheckDecl (Decl p x t) = do
-        let dd = Decl p x (elab t)
-        tcDecl dd
-        
 handleDecl ::  MonadFD4 m => Decl STerm -> m ()
 handleDecl d = do
-        (Decl p x tt) <- typecheckDecl d
-        te <- eval tt
-        addDecl (Decl p x te)
+        m <- getMode
+        case m of
+          Interactive -> do
+              (Decl p x tt) <- typecheckDecl d
+              te <- eval tt
+              addDecl (Decl p x te)
+          Typecheck -> do
+              f <- getLastFile
+              printFD4 ("Chequeando tipos de "++f)
+              td <- typecheckDecl d
+              addDecl td
+              -- opt <- getOpt
+              -- td' <- if opt then optimize td else td
+              ppterm <- ppDecl td  --td'
+              printFD4 ppterm
+
+      where
+        typecheckDecl :: MonadFD4 m => Decl STerm -> m (Decl TTerm)
+        typecheckDecl (Decl p x t) = tcDecl (Decl p x (elab t))
+
 
 data Command = Compile CompileForm
              | PPrint String
@@ -238,15 +219,14 @@ handleCommand cmd = do
        Compile c ->
                   do  case c of
                           CompileInteractive e -> compilePhrase e
-                          CompileFile f        -> put (s {lfile=f, cantDecl=0}) >> compileFile f
+                          CompileFile f        -> compileFile f
                       return True
        Reload ->  eraseLastFileDecls >> (getLastFile >>= compileFile) >> return True
        PPrint e   -> printPhrase e >> return True
        Type e    -> typeCheckPhrase e >> return True
 
 compilePhrase ::  MonadFD4 m => String -> m ()
-compilePhrase x =
-  do
+compilePhrase x = do
     dot <- parseIO "<interactive>" declOrTm x
     case dot of
       Left d  -> handleDecl d
@@ -273,7 +253,7 @@ printPhrase x =
            _       -> return tex
     printFD4 "STerm:"
     printFD4 (show x')
-    printFD4 "STerm:"
+    printFD4 "TTerm:"
     printFD4 (show t)
 
 typeCheckPhrase :: MonadFD4 m => String -> m ()
