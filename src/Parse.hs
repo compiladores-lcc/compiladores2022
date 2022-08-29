@@ -165,16 +165,30 @@ letexp :: P STerm
 letexp = do
   i <- getPos
   reserved "let"
-  (v,ty) <- parens binding
+  (v,ty) <- (parens binding) <|> binding
   reservedOp "="  
   def <- expr
   reserved "in"
   body <- expr
   return (SLet i (v,ty) def body)
 
+letfun :: P STerm
+letfun = do
+  i <- getPos
+  reserved "let"
+  f <- var
+  (v,ty) <- (parens binding)
+  reservedOp ":"
+  ty2 <- typeP
+  reservedOp "="  
+  def <- expr
+  reserved "in"
+  body <- expr
+  return (SLetFunc i (f, v,ty, ty2) def body)
+
 -- | Parser de términos
 tm :: P STerm
-tm = app <|> lam <|> ifz <|> printOp <|> fix <|> letexp
+tm = app <|> lam <|> ifz <|> printOp <|> fix <|> letfun <|> letexp
 
 -- | Parser de declaraciones
 decl :: P (Decl STerm)

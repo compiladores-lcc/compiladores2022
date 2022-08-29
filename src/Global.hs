@@ -11,6 +11,7 @@ module Global where
 
 import Lang
 
+--Toda la informacion que se quiera durante la ejecucion. Por ejemplo en el ejercicio 13 se puede agregar el tiempo de TypeChecker de cada expresion.
 data GlEnv = GlEnv {
   inter :: Bool,        --  ^ True, si estamos en modo interactivo.
                         -- Este parámetro puede cambiar durante la ejecución:

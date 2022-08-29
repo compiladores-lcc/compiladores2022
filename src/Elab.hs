@@ -40,6 +40,8 @@ elab' env (SPrint i str t) = Print i str (elab' env t)
 elab' env (SApp p h a) = App p (elab' env h) (elab' env a)
 elab' env (SLet p (v,vty) def body) =  
   Let p v vty (elab' env def) (close v (elab' (v:env) body))
+elab' env (SLetFunc p (f, v, tv, tf) def body) =
+  Let p f (FunTy tv tf) (Lam p v tv (close v (elab' env def))) (close f (elab' (f:env) body))
 
 elabDecl :: Decl STerm -> Decl Term
 elabDecl = fmap elab
