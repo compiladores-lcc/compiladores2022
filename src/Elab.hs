@@ -40,15 +40,15 @@ elab' env (SBinaryOp i o t u) = BinaryOp i o (elab' env t) (elab' env u)
 elab' env (SPrint i str t) = Print i str (elab' env t)
 -- Aplicaciones generales
 elab' env (SApp p h a) = App p (elab' env h) (elab' env a)
-elab' env (SLet p (v,vty) def body) =  
+elab' env (SLetLam p False False (_,[(v,vty)],_) def body) =  
   Let p v vty (elab' env def) (close v (elab' (v:env) body))
-elab' env (SLetLam p (f, [(v, tv)], tf) def body) =
+elab' env (SLetLam p True False (f, [(v, tv)], tf) def body) =
   Let p f (FunTy tv tf) (Lam p v tv (close v (elab' (v:env) def))) (close f (elab' (f:env) body))
-elab' env (SLetLam p (f, ((v, tv):xs), tf) def body) =
+elab' env (SLetLam p True False (f, ((v, tv):xs), tf) def body) =
   Let p f (FunTy tv (FunTy (typeConstructor xs) tf)) (Lam p v tv (close v (elab' (v:env) (SLam p xs def)))) (close f (elab' (f:env) body))
-elab' env (SLetRec p (f, [(v, tv)], tf) def body) =
+elab' env (SLetLam p True True (f, [(v, tv)], tf) def body) =
   Let p f (FunTy tv tf) (Fix p f (FunTy tv tf) v tv (close2 f v (elab' (v:f:env) def))) (close f (elab' (f:env) body))
-elab' env (SLetRec p (f, ((v, tv):xs), tf) def body) =
+elab' env (SLetLam p True True (f, ((v, tv):xs), tf) def body) =
   Let p f (FunTy tv (FunTy (typeConstructor xs) tf)) (Fix p f (FunTy tv (FunTy (typeConstructor xs) tf)) v tv (close2 f v (elab' (v:f:env) (SLam p xs def)))) (close f (elab' (f:env) body))
 
 typeConstructor :: [(Name, Ty)] -> Ty
@@ -57,3 +57,9 @@ typeConstructor ((v, ty):xs) = FunTy ty (typeConstructor xs)
 
 elabDecl :: Decl STerm -> Decl Term
 elabDecl = fmap elab
+
+
+-- TODO
+-- - Hacer tipo para las declaraciones superficiales.
+-- - Parcear declaraciones a declaraciones superficiales
+-- - En elab construir Decl, rearmando el termino y sacando la azucar

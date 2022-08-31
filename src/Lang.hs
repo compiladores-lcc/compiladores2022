@@ -36,8 +36,7 @@ data STm info ty var =
   | SFix info (var, ty) (var, ty) [(var, ty)] (STm info ty var)
   | SIfZ info (STm info ty var) (STm info ty var) (STm info ty var)
   | SLet info (var, ty) (STm info ty var) (STm info ty var)
-  | SLetLam info (var, [(var, ty)], ty) (STm info ty var) (STm info ty var)
-  | SLetRec info (var, [(var, ty)], ty) (STm info ty var) (STm info ty var)
+  | SLetLam info Bool Bool (var, [(var, ty)], ty) (STm info ty var) (STm info ty var)
   deriving (Show, Functor)
 
 -- | AST de Tipos
