@@ -1,0 +1,97 @@
+Ejercicio 1
+
+
+a)
+
+fun(a:N).
+fun(b:N).
+subt a b
+
+O(1)
+
+b)
+
+fix(exp: N->N->N)(m : N).
+fun(n : N).
+ifz n
+then 0
+else (ifz subt n 1
+then m
+else mult m (exp m (subt n 1)))
+
+O(n²)
+
+c)
+
+fix(fact: N->N)(m : N).
+ifz m then 1 else mult m (fact (subt m 1)))
+
+O(n²)
+
+Ejercicio 2
+
+Bool
+
+Al ser callByValue e if un termino, ambas ramas se evaluaran cosa
+que en if no tiene sentido.
+
+Church
+def true = fun(t: N->N).fun(f: N). t
+def false = fun(t: N).fun(f: N). f
+
+def if = fun(b: N->N->N).fun(t: N).fun(f: N). b t f
+
+def if = fun(b: N->N->N). b fun(t: N) fun(f: N)
+
+
+def ifb = fun(b: (N->N)->(N->N)->N).fun(t: N->N).fun(f: N->N). b t f 0
+
+ifb b (fun(n:N).t) (fun(n:N).f)
+
+
+Pair
+
+
+def pair = fun(x:N).fun(y:N).fun(f:(N->N->N)).f x y
+def first = fun(p: (N->N->N)). p ((fun x:N).(fun y:N). x)
+def scnd = fun(p: (N->N->N)). p ((fun x:N).(fun y:N). y)
+
+
+Ejercicio 3
+
+fix(gcd: N->N->N)(m : N).
+fun(n : N).
+(ifz n
+then m
+else (ifz m
+then n
+else (ifz subt m n
+then gcd m (subt n m)
+else gcd (subt m n) n)))
+Ejercicio 4
+
+R (b, o, c)
+
+fix(god: t->(t->N->t)->N->t)(b:t)
+.Fun(o: (t->N->t))
+.Fun(c: N).
+ifz c
+then b
+else o (god b o (subt c 1)) (subt c 1)
+
+Ejercicio 5
+
+def minf =
+(fix(min: N->(N->N)->N)(m:N)
+fun (f:N->N).
+ifz f m
+then m
+else min (add m 1) f) 0
+
+Ejercicio 6
+
+No es equivalete pues,
+
+dado t1 no divergente y t2 divergente, tenemos que en fun(x:t)->t1)t2
+diverge pues t2 es evaluado (callByValue). En cambio si x no pertenece
+a t1, no se reemplaza por t2, por tanto no se evalua t2 y no diverge.

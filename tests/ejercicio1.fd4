@@ -1,0 +1,62 @@
+let resta = fun(a:Nat) -> 
+                fun(b:Nat) ->
+                    a - b
+
+let mult = fix(mul: Nat->Nat->Nat)(m : Nat) -> 
+            fun(n : Nat) -> 
+            ifz n
+            then 0
+            else (ifz n - 1
+            then m
+            else m + (mul m (n - 1)))
+
+let expo = fix(exp: Nat->Nat->Nat)(m : Nat)(n : Nat) -> 
+            ifz n
+            then 0
+            else (ifz n - 1
+            then m
+            else mult m (exp m (n - 1)))
+
+let fact = fix(fact: Nat->Nat)(m : Nat)->
+            ifz m then 1 else mult m (fact (m - 1))
+
+let aaaa = let rec fact2 (m : Nat): Nat  =  ifz m then 1 else mult m (fact2 (m - 1)) in fact2 5
+
+let testRecExpo = let rec exp (m : Nat)(n : Nat):Nat =
+            ifz n
+            then 0
+            else (ifz n - 1
+            then m
+            else mult m (exp m (n - 1))) in exp 2 2
+
+let true = fun(t: Nat->Nat)->fun(f: Nat->Nat)-> t
+let false = fun(t: Nat->Nat)->fun(f: Nat->Nat)-> f
+
+let ifb = fun(b: (Nat->Nat)->(Nat->Nat)->(Nat->Nat))->fun(t: Nat->Nat)->fun(f: Nat->Nat)-> b t f 0
+
+
+let gcd = fix(gcd: Nat->Nat->Nat)(m : Nat)->
+                fun(n : Nat)->
+                (ifz n
+                then m
+                else (ifz m
+                then n
+                else (ifz m - n
+                then gcd m (n - m)
+                else gcd (m - n) n)))
+
+let R = fix(god: Nat->(Nat->Nat->Nat)->Nat->Nat)(b:Nat)
+            -> fun(o: (Nat->Nat->Nat))
+            -> fun(c: Nat)->
+            ifz c
+            then b
+            else o (god b o (c - 1)) (c - 1)
+
+let minf = (fix(min: Nat->(Nat->Nat)->Nat)(m:Nat) ->
+                fun(f: Nat-> Nat) ->
+                ifz f m
+                then m
+                else min (m + 1) f) 0 
+
+#let testMinfT = ifb true (fun (x:Nat)-> 0) (fun (x:Nat) -> (minf (fun(j:Nat) -> 1)))
+#let testMinfF = ifb false (fun (x:Nat)-> 0) (fun (x:Nat) -> (minf (fun(j:Nat) -> (print "happy\n" 1))))

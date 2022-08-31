@@ -127,9 +127,17 @@ binding = do v <- var
              ty <- typeP
              return (v, ty)
 
+-- Read 1 or more bindings 
 readparams :: P [(Name, Ty)]
 readparams = do
   many1 $ (do 
+                    (v, t) <- parens binding
+                    return (v,t))
+
+-- Read 0 or more bindings 
+readparams0 :: P [(Name, Ty)]
+readparams0 = do
+  many $ (do 
                     (v, t) <- parens binding
                     return (v,t))
 
@@ -163,13 +171,14 @@ fix = do i <- getPos
          reserved "fix"
          (f, fty) <- parens binding
          (x, xty) <- parens binding
+         params <- readparams0
          reservedOp "->"
          t <- expr
-         return (SFix i (f,fty) (x,xty) t)
+         return (SFix i (f,fty) (x,xty) params t)
 
 lets :: P STerm
 lets = do
-          try (do letexp) <|> (do letfun)
+          try (do letexp) <|> (try (do letfun) <|> (do letrec))
 
 letexp :: P STerm
 letexp = do
@@ -188,14 +197,29 @@ letfun = do
   i <- getPos
   reserved "let"
   f <- var
-  (v,ty) <- (parens binding)
+  params <- readparams
+  reservedOp ":"
+  ty2 <- typeP
+  reservedOp "="
+  def <- expr
+  reserved "in"
+  body <- expr
+  return (SLetLam i (f, params, ty2) def body)
+  
+letrec :: P STerm
+letrec = do
+  i <- getPos
+  reserved "let"
+  reserved "rec"
+  f <- var
+  params <- readparams
   reservedOp ":"
   ty2 <- typeP
   reservedOp "="  
   def <- expr
   reserved "in"
   body <- expr
-  return (SLetLam i (f, v,ty, ty2) def body)
+  return (SLetRec i (f, params, ty2) def body)
 
 -- | Parser de términos
 tm :: P STerm
