@@ -127,13 +127,19 @@ binding = do v <- var
              ty <- typeP
              return (v, ty)
 
+readparams :: P [(Name, Ty)]
+readparams = do
+  many1 $ (do 
+                    (v, t) <- parens binding
+                    return (v,t))
+
 lam :: P STerm
 lam = do i <- getPos
          reserved "fun"
-         (v,ty) <- parens binding
+         params <- readparams
          reservedOp "->"
          t <- expr
-         return (SLam i (v,ty) t)
+         return (SLam i params t)
 
 -- Nota el parser app también parsea un solo atom.
 app :: P STerm
@@ -161,6 +167,10 @@ fix = do i <- getPos
          t <- expr
          return (SFix i (f,fty) (x,xty) t)
 
+lets :: P STerm
+lets = do
+          try (do letexp) <|> (do letfun)
+
 letexp :: P STerm
 letexp = do
   i <- getPos
@@ -171,6 +181,7 @@ letexp = do
   reserved "in"
   body <- expr
   return (SLet i (v,ty) def body)
+
 
 letfun :: P STerm
 letfun = do
@@ -184,11 +195,11 @@ letfun = do
   def <- expr
   reserved "in"
   body <- expr
-  return (SLetFunc i (f, v,ty, ty2) def body)
+  return (SLetLam i (f, v,ty, ty2) def body)
 
 -- | Parser de términos
 tm :: P STerm
-tm = app <|> lam <|> ifz <|> printOp <|> fix <|> letfun <|> letexp
+tm = app <|> lam <|> ifz <|> printOp <|> fix <|> lets
 
 -- | Parser de declaraciones
 decl :: P (Decl STerm)

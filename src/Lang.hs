@@ -27,14 +27,16 @@ import           Data.List.Extra                ( nubSort )
 data STm info ty var =
     SV info var
   | SConst info Const
-  | SLam info (var, ty) (STm info ty var)
+  -- SLam se cambia a multiples Lam en elab, pero para pintear estos se trasnforman en 
+  -- SLam que poseen un unico elemento en la lista de parametros.
+  | SLam info [(var, ty)] (STm info ty var)
   | SApp info (STm info ty var) (STm info ty var)
   | SPrint info String (STm info ty var)
   | SBinaryOp info BinaryOp (STm info ty var) (STm info ty var)
   | SFix info (var, ty) (var, ty) (STm info ty var)
   | SIfZ info (STm info ty var) (STm info ty var) (STm info ty var)
   | SLet info (var, ty) (STm info ty var) (STm info ty var)
-  | SLetFunc info (var, var, ty, ty) (STm info ty var) (STm info ty var)
+  | SLetLam info (var, var, ty, ty) (STm info ty var) (STm info ty var)
   deriving (Show, Functor)
 
 -- | AST de Tipos
