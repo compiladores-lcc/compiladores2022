@@ -37,7 +37,9 @@ langDef = emptyDef {
          commentLine    = "#",
          reservedNames = ["let", "rec","fun", "fix", "then", "else","in",
                            "ifz", "print","Nat","type"],
-         reservedOpNames = ["->",":","=","+","-"]
+         reservedOpNames = ["->",":","=","+","-"],
+         commentStart = "{-",
+         commentEnd = "-}"
         }
 
 whiteSpace :: P ()
@@ -130,10 +132,10 @@ binding = do v <- var
 lam :: P STerm
 lam = do i <- getPos
          reserved "fun"
-         (v,ty) <- parens binding
+         args <- many1 $ parens binding
          reservedOp "->"
          t <- expr
-         return (SLam i (v,ty) t)
+         return (SLam i args t)
 
 -- Nota el parser app también parsea un solo atom.
 app :: P STerm
@@ -156,21 +158,24 @@ fix :: P STerm
 fix = do i <- getPos
          reserved "fix"
          (f, fty) <- parens binding
-         (x, xty) <- parens binding
+         args <- many1 $ parens binding
          reservedOp "->"
          t <- expr
-         return (SFix i (f,fty) (x,xty) t)
+         return (SFix i (f,fty) args t)
 
 letexp :: P STerm
 letexp = do
   i <- getPos
   reserved "let"
-  (v,ty) <- parens binding
+  isRec <- (reserved "rec" >> return True) <|> return False
+  f <- var
+  args <- many $ parens binding
+  t <- reserved ":" >> typeP
   reservedOp "="  
   def <- expr
   reserved "in"
   body <- expr
-  return (SLet i (v,ty) def body)
+  return (SLet i isRec ((f,t):args) def body)
 
 -- | Parser de términos
 tm :: P STerm

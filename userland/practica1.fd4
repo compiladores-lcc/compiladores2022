@@ -1,3 +1,10 @@
 let gcd = fix (gcd: Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then m else (ifz m then n else (ifz (n - m) then (gcd (m - n) n) else (gcd m (n - m))))
 
+
+{-
+lasdjflasdljfajlsdf
 let mini = fun (f: Nat -> Nat) -> (fix (mini : Nat -> Nat) (n : Nat) -> ifz (f n) then n else mini (n + 1)) 0
+';'';;;;';p[p09876543wsdfghj,./xcvbzxcbz]cvb
+z;xvbzzxvc
+;lf33--|¿>
+-}
