@@ -1,3 +1,4 @@
+# Tests de ejercicio 1 y declaraciones sin azucar sintactico.
 let resta = fun(a:Nat) -> 
                 fun(b:Nat) ->
                     a - b
@@ -60,3 +61,17 @@ let minf = (fix(min: Nat->(Nat->Nat)->Nat)(m:Nat) ->
 
 #let testMinfT = ifb true (fun (x:Nat)-> 0) (fun (x:Nat) -> (minf (fun(j:Nat) -> 1)))
 #let testMinfF = ifb false (fun (x:Nat)-> 0) (fun (x:Nat) -> (minf (fun(j:Nat) -> (print "happy\n" 1))))
+
+# Declaraciones con azucar sintactico.
+let menos1az (a : Nat) : Nat = a - 1
+
+let restaaz (a:Nat) (b:Nat) :Nat = a - b
+
+let rec factaz (m:Nat):Nat = ifz m then 1 else mult m (factaz (m - 1))
+
+let rec multaz (m:Nat)(n:Nat):Nat =  
+            ifz n
+            then 0
+            else (ifz n - 1
+                    then m
+                    else m + (multaz m (n - 1)))

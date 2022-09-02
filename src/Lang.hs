@@ -36,7 +36,7 @@ data STm info ty var =
   | SFix info (var, ty) (var, ty) [(var, ty)] (STm info ty var)
   | SIfZ info (STm info ty var) (STm info ty var) (STm info ty var)
   | SLet info (var, ty) (STm info ty var) (STm info ty var)
-  | SLetLam info Bool Bool (var, [(var, ty)], ty) (STm info ty var) (STm info ty var)
+  | SLetLam info Bool (var, [(var, ty)], ty) (STm info ty var) (STm info ty var)
   deriving (Show, Functor)
 
 -- | AST de Tipos
@@ -54,6 +54,10 @@ newtype Const = CNat Int
 
 data BinaryOp = Add | Sub
   deriving Show
+
+data SDecl a = 
+    SDecl { sdeclPos :: Pos, sdeclName :: Name, sdeclBody :: a}
+  | SDeclLam { sdeclPos :: Pos, sdeclBool :: Bool, sdeclName :: Name, sdeclVarType :: [(Name, Ty)], sdeclFunType:: Ty, sdeclBody :: a}
 
 -- | tipo de datos de declaraciones, parametrizado por el tipo del cuerpo de la declaración
 data Decl a = Decl

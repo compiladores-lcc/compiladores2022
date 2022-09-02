@@ -40,23 +40,29 @@ elab' env (SBinaryOp i o t u) = BinaryOp i o (elab' env t) (elab' env u)
 elab' env (SPrint i str t) = Print i str (elab' env t)
 -- Aplicaciones generales
 elab' env (SApp p h a) = App p (elab' env h) (elab' env a)
-elab' env (SLetLam p False False (_,[(v,vty)],_) def body) =  
+elab' env (SLet p (v,vty) def body) =  
   Let p v vty (elab' env def) (close v (elab' (v:env) body))
-elab' env (SLetLam p True False (f, [(v, tv)], tf) def body) =
+elab' env (SLetLam p False (f, [(v, tv)], tf) def body) =
   Let p f (FunTy tv tf) (Lam p v tv (close v (elab' (v:env) def))) (close f (elab' (f:env) body))
-elab' env (SLetLam p True False (f, ((v, tv):xs), tf) def body) =
+elab' env (SLetLam p False (f, ((v, tv):xs), tf) def body) =
   Let p f (FunTy tv (FunTy (typeConstructor xs) tf)) (Lam p v tv (close v (elab' (v:env) (SLam p xs def)))) (close f (elab' (f:env) body))
-elab' env (SLetLam p True True (f, [(v, tv)], tf) def body) =
+elab' env (SLetLam p True (f, [(v, tv)], tf) def body) =
   Let p f (FunTy tv tf) (Fix p f (FunTy tv tf) v tv (close2 f v (elab' (v:f:env) def))) (close f (elab' (f:env) body))
-elab' env (SLetLam p True True (f, ((v, tv):xs), tf) def body) =
+elab' env (SLetLam p True (f, ((v, tv):xs), tf) def body) =
   Let p f (FunTy tv (FunTy (typeConstructor xs) tf)) (Fix p f (FunTy tv (FunTy (typeConstructor xs) tf)) v tv (close2 f v (elab' (v:f:env) (SLam p xs def)))) (close f (elab' (f:env) body))
 
 typeConstructor :: [(Name, Ty)] -> Ty
 typeConstructor [(v, ty)] = ty
 typeConstructor ((v, ty):xs) = FunTy ty (typeConstructor xs)
 
-elabDecl :: Decl STerm -> Decl Term
-elabDecl = fmap elab
+elabDecl :: SDecl STerm -> Decl Term
+elabDecl (SDecl i f def) = (Decl i f (elab def))
+elabDecl (SDeclLam i False f xs tf def) = (Decl i f (elab def'))
+  where def' = (SLam i xs def)
+elabDecl (SDeclLam i True f ([(v, tv)]) tf def) = (Decl i f def')
+  where def' = (Fix i f (FunTy tv tf) v tv (close2 f v (elab' (v:[f]) def)))
+elabDecl (SDeclLam i True f ((v, tv):xs) tf def) = (Decl i f def')
+  where def' = (Fix i f (FunTy tv (FunTy (typeConstructor xs) tf)) v tv (close2 f v (elab' (v:[f]) (SLam i xs def))))
 
 
 -- TODO

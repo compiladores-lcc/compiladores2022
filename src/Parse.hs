@@ -22,6 +22,7 @@ import Text.ParserCombinators.Parsec.Language --( GenLanguageDef(..), emptyDef )
 import qualified Text.Parsec.Expr as Ex
 import Text.Parsec.Expr (Operator, Assoc)
 import Control.Monad.Identity (Identity)
+import Data.Maybe
 
 type P = Parsec String ()
 
@@ -189,17 +190,14 @@ letexp = do
   def <- expr
   reserved "in"
   body <- expr
-  -- los valores v y ty son basura para la funcion
-  return (SLetLam i False False (v,[(v,ty)],ty) def body)
+  return (SLet i (v,ty) def body)
 
 
 letfun :: P STerm
 letfun = do
   i <- getPos
   reserved "let"
-  bool <- try (do 
-                 reserved "rec"
-                 return True)
+  bool <- fmap isJust (optionMaybe (reserved "rec"))
   f <- var
   params <- readparams
   reservedOp ":"
@@ -208,30 +206,47 @@ letfun = do
   def <- expr
   reserved "in"
   body <- expr
-  return (SLetLam i True bool (f, params, ty2) def body)
+  return (SLetLam i bool (f, params, ty2) def body)
 
 -- | Parser de términos
 tm :: P STerm
 tm = app <|> lam <|> ifz <|> printOp <|> fix <|> lets
 
 -- | Parser de declaraciones
-decl :: P (Decl STerm)
+decl :: P (SDecl STerm)
 decl = do 
-     i <- getPos
-     reserved "let"
-     v <- var
-     reservedOp "="
-     t <- expr
-     return (Decl i v t)
+        try (do declfun) <|> (do declexp) 
+
+declexp :: P (SDecl STerm)
+declexp = do
+  i <- getPos
+  reserved "let"
+  v <- var
+  reservedOp "="
+  def <- expr
+  return (SDecl i v def)
+
+declfun :: P (SDecl STerm)
+declfun = do
+  i <- getPos
+  reserved "let"
+  bool <- fmap isJust (optionMaybe (reserved "rec"))
+  f <- var
+  params <- readparams
+  reservedOp ":"
+  ty2 <- typeP
+  reservedOp "="
+  def <- expr
+  return (SDeclLam i bool f params ty2 def)
 
 -- | Parser de programas (listas de declaraciones) 
-program :: P [Decl STerm]
+program :: P [SDecl STerm]
 program = many decl
 
 -- | Parsea una declaración a un término
 -- Útil para las sesiones interactivas
-declOrTm :: P (Either (Decl STerm) STerm)
-declOrTm =  try (Left <$> decl) <|> (Right <$> expr)
+declOrTm :: P (Either (SDecl STerm) STerm)
+declOrTm =  (try (Right <$> expr)) <|> (Left <$> decl)
 
 -- Corre un parser, chequeando que se pueda consumir toda la entrada
 runP :: P a -> String -> String -> Either ParseError a
