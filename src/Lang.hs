@@ -29,12 +29,14 @@ data STm info ty var =
   | SConst info Const
   | SLam info [(var, ty)] (STm info ty var)
   | SApp info (STm info ty var) (STm info ty var)
-  | SPrint info String (STm info ty var)
+  | SPrint info String (Maybe (STm info ty var))
   | SBinaryOp info BinaryOp (STm info ty var) (STm info ty var)
   | SFix info (var, ty) [(var, ty)] (STm info ty var)
   | SIfZ info (STm info ty var) (STm info ty var) (STm info ty var)
   | SLet info Bool [(var, ty)] (STm info ty var) (STm info ty var)
   deriving (Show, Functor)
+
+-- data STy = NatSTy | FunSTy STy STy | SynSTy Name deriving (Show, Eq)
 
 -- | AST de Tipos
 data Ty =
@@ -51,6 +53,10 @@ newtype Const = CNat Int
 
 data BinaryOp = Add | Sub
   deriving Show
+
+-- data SDecl a =
+--     LetDecl { sDeclPos :: Pos, sDeclName :: Name, sDeclBody :: a }
+--   | TypeDecl { sDeclPos :: Pos, sDeclName :: Name, sType :: STy }
 
 -- | tipo de datos de declaraciones, parametrizado por el tipo del cuerpo de la declaración
 data Decl a = Decl

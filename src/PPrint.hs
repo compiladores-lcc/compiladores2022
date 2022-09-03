@@ -62,7 +62,7 @@ openAll gp ns (Fix p f fty x xty t) =
     f' = freshen (x':ns) f
   in SFix (gp p) (f',fty) [(x',xty)] (openAll gp (x:f:ns) (open2 f' x' t))
 openAll gp ns (IfZ p c t e) = SIfZ (gp p) (openAll gp ns c) (openAll gp ns t) (openAll gp ns e)
-openAll gp ns (Print p str t) = SPrint (gp p) str (openAll gp ns t)
+openAll gp ns (Print p str t) = SPrint (gp p) str (Just $ openAll gp ns t)
 openAll gp ns (BinaryOp p op t u) = SBinaryOp (gp p) op (openAll gp ns t) (openAll gp ns u)
 openAll gp ns (Let p v ty m n) = 
     let v'= freshen ns v 
@@ -154,7 +154,10 @@ t2doc at (SIfZ _ c t e) =
      , keywordColor (pretty "then"), nest 2 (t2doc False t)
      , keywordColor (pretty "else"), nest 2 (t2doc False e) ]
 
-t2doc at (SPrint _ str t) =
+t2doc at (SPrint _ str Nothing) =
+  parenIf at $
+  sep [keywordColor (pretty "print"), pretty (show str)]
+t2doc at (SPrint _ str (Just t)) =
   parenIf at $
   sep [keywordColor (pretty "print"), pretty (show str), t2doc True t]
 
