@@ -102,7 +102,7 @@ printOp = do
   i <- getPos
   reserved "print"
   str <- option "" stringLiteral
-  a <- atom
+  a <- (optionMaybe atom)
   return (SPrint i str a)
 
 binary :: String -> BinaryOp -> Assoc -> Operator String () Identity STerm

@@ -14,6 +14,7 @@ module Elab ( elab, elabDecl) where
 
 import Lang
 import Subst
+import PPrint (freshen)
 
 -- | 'elab' transforma variables ligadas en índices de de Bruijn
 -- en un término dado. 
@@ -37,7 +38,8 @@ elab' env (SIfZ p c t e)         = IfZ p (elab' env c) (elab' env t) (elab' env 
 -- Operadores binarios
 elab' env (SBinaryOp i o t u) = BinaryOp i o (elab' env t) (elab' env u)
 -- Operador Print
-elab' env (SPrint i str t) = Print i str (elab' env t)
+elab' env (SPrint i str (Just t)) = Print i str (elab' env t)
+elab' env (SPrint i str Nothing) = let v = (freshen env "x") in Lam i v NatTy (close v (elab' (v:env) (SPrint i str (Just (SV i v)))))
 -- Aplicaciones generales
 elab' env (SApp p h a) = App p (elab' env h) (elab' env a)
 elab' env (SLet p (v,vty) def body) =  
@@ -63,9 +65,3 @@ elabDecl (SDeclLam i True f ([(v, tv)]) tf def) = (Decl i f def')
   where def' = (Fix i f (FunTy tv tf) v tv (close2 f v (elab' (v:[f]) def)))
 elabDecl (SDeclLam i True f ((v, tv):xs) tf def) = (Decl i f def')
   where def' = (Fix i f (FunTy tv (FunTy (typeConstructor xs) tf)) v tv (close2 f v (elab' (v:[f]) (SLam i xs def))))
-
-
--- TODO
--- - Hacer tipo para las declaraciones superficiales.
--- - Parcear declaraciones a declaraciones superficiales
--- - En elab construir Decl, rearmando el termino y sacando la azucar
