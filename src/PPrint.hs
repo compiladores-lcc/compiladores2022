@@ -46,7 +46,7 @@ freshen ns n = let cands = n : map (\i -> n ++ show i) [0..]
 -- a términos fully named abriendo todos las variables de ligadura que va encontrando
 -- Debe tener cuidado de no abrir términos con nombres que ya fueron abiertos.
 -- Estos nombres se encuentran en la lista ns (primer argumento).
-openAll :: (i -> Pos) -> [Name] -> Tm i Var -> STerm
+openAll :: (i -> Pos) -> [Name] -> Tm i Var -> STermTy
 openAll gp ns (V p v) = case v of 
       Bound i ->  SV (gp p) $ "(Bound "++show i++")" --este caso no debería aparecer
                                                --si el término es localmente cerrado
@@ -110,7 +110,7 @@ binary2doc :: BinaryOp -> Doc AnsiStyle
 binary2doc Add = opColor (pretty "+")
 binary2doc Sub = opColor (pretty "-")
 
-collectApp :: STerm -> (STerm, [STerm])
+collectApp :: STermTy -> (STermTy, [STermTy])
 collectApp = go [] where
   go ts (SApp _ h tt) = go (tt:ts) h
   go ts h = (h, ts)
@@ -123,7 +123,7 @@ parenIf _ = id
 -- at: debe ser un átomo
 -- | Pretty printing de términos (Doc)
 t2doc :: Bool     -- Debe ser un átomo? 
-      -> STerm    -- término a mostrar
+      -> STermTy    -- término a mostrar
       -> Doc AnsiStyle
 -- Uncomment to use the Show instance for STerm
 {- t2doc at x = text (show x) -}

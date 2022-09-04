@@ -30,7 +30,7 @@ import Global
 import Errors
 import Lang
 import Parse ( P, tm, program, declOrTm, runP )
-import Elab ( elab, elabDecl )
+import Elab ( elab, elabDecl, elabDeclType, elabTermType )
 import Eval ( eval )
 import PPrint ( pp , ppTy, ppDecl )
 import MonadFD4
@@ -132,22 +132,33 @@ handleDecl d = do
         m <- getMode
         case m of
           Interactive -> do
-              (Decl p x tt) <- typecheckDecl d
-              te <- eval tt
-              addDecl (Decl p x te)
+                            a <- typecheckDecl d
+                            (case a of
+                              Nothing -> return ()
+                              Just (Decl p x tt) -> 
+                                do te <- eval tt
+                                   addDecl (Decl p x te))
           Typecheck -> do
-              f <- getLastFile
-              printFD4 ("Chequeando tipos de "++f)
-              td <- typecheckDecl d
-              addDecl td
-              -- opt <- getOpt
-              -- td' <- if opt then optimize td else td
-              ppterm <- ppDecl td  --td'
-              printFD4 ppterm
+                          f <- getLastFile
+                          printFD4 ("Chequeando tipos de "++f)
+                          td <- typecheckDecl d
+                          (case td of
+                            Nothing -> return ()
+                            Just tf ->
+                              do  addDecl tf
+                                  -- opt <- getOpt
+                                  -- td' <- if opt then optimize td else td
+                                  ppterm <- ppDecl tf  --td'
+                                  printFD4 ppterm)
 
       where
-        typecheckDecl :: MonadFD4 m => SDecl STerm -> m (Decl TTerm)
-        typecheckDecl dec = tcDecl (elabDecl dec)
+        typecheckDecl :: MonadFD4 m => SDecl STerm -> m (Maybe (Decl TTerm))
+        typecheckDecl dec = do decT <- elabDeclType dec 
+                               t <- elabDecl decT
+                               case t of
+                                Nothing -> return Nothing
+                                Just tt -> do t' <- tcDecl tt
+                                              return (Just t')
 
 
 data Command = Compile CompileForm
@@ -234,7 +245,8 @@ compilePhrase x = do
 
 handleTerm ::  MonadFD4 m => STerm -> m ()
 handleTerm t = do
-         let t' = elab t
+         ty <- elabTermType t
+         t' <- elab ty
          s <- get
          tt <- tc t' (tyEnv s)
          te <- eval tt
@@ -245,7 +257,8 @@ printPhrase   :: MonadFD4 m => String -> m ()
 printPhrase x =
   do
     x' <- parseIO "<interactive>" tm x
-    let ex = elab x'
+    ty <- elabTermType x'
+    ex <- elab ty
     tyenv <- gets tyEnv
     tex <- tc ex tyenv
     t  <- case x' of
@@ -259,7 +272,8 @@ printPhrase x =
 typeCheckPhrase :: MonadFD4 m => String -> m ()
 typeCheckPhrase x = do
          t <- parseIO "<interactive>" tm x
-         let t' = elab t
+         tyt <- elabTermType t
+         t' <- elab tyt
          s <- get
          tt <- tc t' (tyEnv s)
          let ty = getTy tt

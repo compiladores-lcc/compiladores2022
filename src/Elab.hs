@@ -10,18 +10,19 @@ Este módulo permite elaborar términos y declaraciones para convertirlas desde
 fully named (@STerm) a locally closed (@Term@)
 -}
 
-module Elab ( elab, elabDecl) where
+module Elab ( elab, elabDecl, elabDeclType, elabTermType ) where
 
 import Lang
 import Subst
 import PPrint (freshen)
-
+import MonadFD4
+import Common ( Pos )
 -- | 'elab' transforma variables ligadas en índices de de Bruijn
 -- en un término dado. 
-elab :: STerm -> Term
-elab = elab' []
+elab :: MonadFD4 m => STermTy -> m Term
+elab t = do return (elab' [] t)
 
-elab' :: [Name] -> STerm -> Term
+elab' :: [Name] -> STermTy -> Term
 elab' env (SV p v) =
   -- Tenemos que ver si la variable es Global o es un nombre local
   -- En env llevamos la lista de nombres locales.
@@ -57,11 +58,83 @@ typeConstructor :: [(Name, Ty)] -> Ty
 typeConstructor [(v, ty)] = ty
 typeConstructor ((v, ty):xs) = FunTy ty (typeConstructor xs)
 
-elabDecl :: SDecl STerm -> Decl Term
-elabDecl (SDecl i f def) = (Decl i f (elab def))
-elabDecl (SDeclLam i False f xs tf def) = (Decl i f (elab def'))
+elabDecl :: MonadFD4 m => SDeclTy STermTy -> m (Maybe (Decl Term))
+elabDecl (SDecl i f def) = do return (Just (Decl i f (elab' [] def)))
+elabDecl (SDeclLam i False f xs tf def) = do return (Just (Decl i f (elab' [] def')))
   where def' = (SLam i xs def)
-elabDecl (SDeclLam i True f ([(v, tv)]) tf def) = (Decl i f def')
+elabDecl (SDeclLam i True f ([(v, tv)]) tf def) = do return (Just (Decl i f def'))
   where def' = (Fix i f (FunTy tv tf) v tv (close2 f v (elab' (v:[f]) def)))
-elabDecl (SDeclLam i True f ((v, tv):xs) tf def) = (Decl i f def')
+elabDecl (SDeclLam i True f ((v, tv):xs) tf def) = do return (Just (Decl i f def'))
   where def' = (Fix i f (FunTy tv (FunTy (typeConstructor xs) tf)) v tv (close2 f v (elab' (v:[f]) (SLam i xs def))))
+elabDecl (SDeclType i n t) = do addTypeDef (n, t)
+                                return Nothing
+
+typeResolver :: MonadFD4 m => STy -> Pos -> m (Ty)
+typeResolver SNatTy p = return NatTy
+typeResolver (SNameTy n) p = do 
+                              ty <- lookupTyDef n
+                              case ty of
+                                Nothing -> failPosFD4 p $ n ++" no está declarado"
+                                Just t -> return t
+typeResolver (SFunTy t1 t2) p = do
+                                  t1' <- typeResolver t1 p
+                                  t2' <- typeResolver t2 p
+                                  return (FunTy t1' t2')
+
+listElemTypeResolver :: MonadFD4 m => Pos -> [(Name, STy)] -> m [(Name, Ty)]
+listElemTypeResolver i xs = sequence (map pasaje (map (\(x,y) -> (x, typeResolver y i)) xs))
+
+pasaje :: MonadFD4 m => (Name, m Ty) -> m (Name, Ty)
+pasaje (x, y) = do y' <- y
+                   return (x, y')
+
+
+ 
+--         typeResolver         pasaje             ????           return
+--[(Name, STy)] -> [(Name, m Ty)] -> [m (Name, Ty)] -> [(Name, Ty)] -> m [(Name, Ty)]
+
+--listElemTypeResolver2 i (x,y) = do t' <- typeResolver y i
+
+elabTermType :: MonadFD4 m => STerm -> m (STermTy)
+elabTermType (SV i v) = return (SV i v)
+elabTermType (SConst i c) = return (SConst i c)
+elabTermType (SLam i xs t) = do t' <- elabTermType t
+                                xs' <- listElemTypeResolver i xs
+                                return (SLam i xs' t')
+elabTermType (SApp i t1 t2) = do t1' <- elabTermType t1
+                                 t2' <- elabTermType t2
+                                 return (SApp i t1' t2')
+elabTermType (SFix i (v, tv) (v2, tv2) xs t) = do t1' <- typeResolver tv i
+                                                  t2' <- typeResolver tv2 i
+                                                  e1' <- elabTermType t
+                                                  xs' <- listElemTypeResolver i xs
+                                                  return (SFix i (v, t1') (v2, t2') xs' e1')
+elabTermType (SPrint i str (Just t)) = do t' <- elabTermType t
+                                          return (SPrint i str (Just t'))
+elabTermType (SPrint i s Nothing) = return (SPrint i s Nothing)
+elabTermType (SLet p (v, vty) def body) = do t1' <- typeResolver vty p
+                                             e1' <- elabTermType def
+                                             e2' <- elabTermType body
+                                             return (SLet p (v, t1') e1' e2')
+elabTermType (SLetLam p b (f, xs, tf) def body) = do xs' <- listElemTypeResolver p xs
+                                                     t1' <- typeResolver tf p
+                                                     e1' <- elabTermType def
+                                                     e2' <- elabTermType body
+                                                     return (SLetLam p b (f, xs', t1') e1' e2')
+elabTermType (SBinaryOp i b t1 t2) = do t1' <- elabTermType t1
+                                        t2' <- elabTermType t2
+                                        return (SBinaryOp i b t1' t2')
+elabTermType (SIfZ i t1 t2 t3) = do t1' <- elabTermType t1
+                                    t2' <- elabTermType t2
+                                    t3' <- elabTermType t3
+                                    return (SIfZ i t1' t2' t3')
+
+elabDeclType :: MonadFD4 m => SDecl STerm -> m (SDeclTy STermTy)
+elabDeclType (SDecl i f def) = do e1' <- elabTermType def
+                                  return (SDecl i f e1')
+elabDeclType (SDeclLam i b f xs tf def) = do t1' <- typeResolver tf i
+                                             e1' <- elabTermType def
+                                             xs' <- listElemTypeResolver i xs
+                                             return (SDeclLam i b f xs' t1' e1')
+elabDeclType (SDeclType i n t) = do t1' <- typeResolver t i 
+                                    return (SDeclType i n t1')

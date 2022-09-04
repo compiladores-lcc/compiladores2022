@@ -82,18 +82,20 @@ getPos :: P Pos
 getPos = do pos <- getPosition
             return $ Pos (sourceLine pos) (sourceColumn pos)
 
-tyatom :: P Ty
-tyatom = (reserved "Nat" >> return NatTy)
+tyatom :: P STy
+tyatom = (reserved "Nat" >> return SNatTy)
+         <|> (do x <- var
+                 return (SNameTy x))
          <|> parens typeP
 
-typeP :: P Ty
+typeP :: P STy
 typeP = try (do 
           x <- tyatom
           reservedOp "->"
           y <- typeP
-          return (FunTy x y))
+          return (SFunTy x y))
       <|> tyatom
-          
+
 const :: P Const
 const = CNat <$> num
 
@@ -122,21 +124,21 @@ atom =     (flip SConst <$> const <*> getPos)
        <|> printOp
 
 -- parsea un par (variable : tipo)
-binding :: P (Name, Ty)
+binding :: P (Name, STy)
 binding = do v <- var
              reservedOp ":"
              ty <- typeP
              return (v, ty)
 
 -- Read 1 or more bindings 
-readparams :: P [(Name, Ty)]
+readparams :: P [(Name, STy)]
 readparams = do
   many1 $ (do 
                     (v, t) <- (parens binding) <|> binding
                     return (v,t))
 
 -- Read 0 or more bindings 
-readparams0 :: P [(Name, Ty)]
+readparams0 :: P [(Name, STy)]
 readparams0 = do
   many $ (do 
                     (v, t) <- (parens binding) <|> binding
@@ -215,7 +217,7 @@ tm = app <|> lam <|> ifz <|> printOp <|> fix <|> lets
 -- | Parser de declaraciones
 decl :: P (SDecl STerm)
 decl = do 
-        try (do declfun) <|> (do declexp) 
+        try (do declfun) <|> (do declexp) <|> (do decltype)
 
 declexp :: P (SDecl STerm)
 declexp = do
@@ -238,6 +240,15 @@ declfun = do
   reservedOp "="
   def <- expr
   return (SDeclLam i bool f params ty2 def)
+
+decltype :: P (SDecl STerm)
+decltype = do
+  i <- getPos
+  reserved "type"
+  n <- var
+  reservedOp "="
+  t <- typeP
+  return (SDeclType i n t)
 
 -- | Parser de programas (listas de declaraciones) 
 program :: P [SDecl STerm]

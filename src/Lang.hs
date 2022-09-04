@@ -41,6 +41,12 @@ data STm info ty var =
   deriving (Show, Functor)
 
 -- | AST de Tipos
+data STy =
+      SNatTy
+    | SFunTy STy STy
+    | SNameTy Name
+    deriving (Show,Eq)
+
 data Ty =
       NatTy
     | FunTy Ty Ty
@@ -48,7 +54,8 @@ data Ty =
 
 type Name = String
 
-type STerm = STm Pos Ty Name -- ^ 'STm' tiene 'Name's como variables ligadas y libres y globales, guarda posición  
+type STerm = STm Pos STy Name -- ^ 'STm' tiene 'Name's como variables ligadas y libres y globales, guarda posición. Con tipos superficiales
+type STermTy = STm Pos Ty Name -- AST de terminos superficiales pero con tipos no superficiales
 
 newtype Const = CNat Int
   deriving Show
@@ -56,10 +63,13 @@ newtype Const = CNat Int
 data BinaryOp = Add | Sub
   deriving Show
 
-data SDecl a = 
+data SD ty a = 
     SDecl { sdeclPos :: Pos, sdeclName :: Name, sdeclBody :: a}
-  | SDeclLam { sdeclPos :: Pos, sdeclBool :: Bool, sdeclName :: Name, sdeclVarType :: [(Name, Ty)], sdeclFunType:: Ty, sdeclBody :: a}
+  | SDeclLam { sdeclPos :: Pos, sdeclBool :: Bool, sdeclName :: Name, sdeclVarType :: [(Name, ty)], sdeclFunType:: ty, sdeclBody :: a}
+  | SDeclType { sdeclPos :: Pos, sdeclName :: Name, sdeclType :: ty }
 
+type SDecl = SD STy
+type SDeclTy = SD Ty
 -- | tipo de datos de declaraciones, parametrizado por el tipo del cuerpo de la declaración
 data Decl a = Decl
   { declPos  :: Pos
