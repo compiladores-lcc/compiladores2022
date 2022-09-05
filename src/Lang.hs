@@ -30,14 +30,14 @@ data STm info ty var =
   | SConst info Const
   -- SLam se cambia a multiples Lam en elab, pero para pintear estos se trasnforman en 
   -- SLam que poseen un unico elemento en la lista de parametros.
-  | SLam info [(var, ty)] (STm info ty var)
+  | SLam info [([var], ty)] (STm info ty var)
   | SApp info (STm info ty var) (STm info ty var)
   | SPrint info String (Maybe (STm info ty var))
   | SBinaryOp info BinaryOp (STm info ty var) (STm info ty var)
-  | SFix info (var, ty) (var, ty) [(var, ty)] (STm info ty var)
+  | SFix info (var, ty) (var, ty) [([var], ty)] (STm info ty var)
   | SIfZ info (STm info ty var) (STm info ty var) (STm info ty var)
   | SLet info (var, ty) (STm info ty var) (STm info ty var)
-  | SLetLam info Bool (var, [(var, ty)], ty) (STm info ty var) (STm info ty var)
+  | SLetLam info Bool (var, [([var], ty)], ty) (STm info ty var) (STm info ty var)
   deriving (Show, Functor)
 
 -- | AST de Tipos
@@ -65,7 +65,7 @@ data BinaryOp = Add | Sub
 
 data SD ty a = 
     SDecl { sdeclPos :: Pos, sdeclName :: Name, sdeclBody :: a}
-  | SDeclLam { sdeclPos :: Pos, sdeclBool :: Bool, sdeclName :: Name, sdeclVarType :: [(Name, ty)], sdeclFunType:: ty, sdeclBody :: a}
+  | SDeclLam { sdeclPos :: Pos, sdeclBool :: Bool, sdeclName :: Name, sdeclVarType :: [([Name], ty)], sdeclFunType:: ty, sdeclBody :: a}
   | SDeclType { sdeclPos :: Pos, sdeclName :: Name, sdeclType :: ty }
 
 type SDecl = SD STy

@@ -131,18 +131,19 @@ binding = do v <- var
              return (v, ty)
 
 -- Read 1 or more bindings 
-readparams :: P [(Name, STy)]
-readparams = do
-  many1 $ (do 
-                    (v, t) <- (parens binding) <|> binding
-                    return (v,t))
+readparams :: P [([Name], STy)]
+readparams = many1 ((parens readparam) <|> readparam)
+
+readparam :: P ([Name], STy)
+readparam = do l <- many1 var
+               reservedOp ":"
+               t <- typeP
+               return (l, t)
 
 -- Read 0 or more bindings 
-readparams0 :: P [(Name, STy)]
-readparams0 = do
-  many $ (do 
-                    (v, t) <- (parens binding) <|> binding
-                    return (v,t))
+readparams0 :: P [([Name], STy)]
+readparams0 = many ((parens readparam) <|> readparam)
+
 
 lam :: P STerm
 lam = do i <- getPos

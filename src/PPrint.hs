@@ -15,7 +15,8 @@ module PPrint (
     ppTy,
     ppName,
     ppDecl,
-    freshen
+    freshen,
+    dbnd
     ) where
 
 import Lang
@@ -55,7 +56,7 @@ openAll gp ns (V p v) = case v of
 openAll gp ns (Const p c) = SConst (gp p) c
 openAll gp ns (Lam p x ty t) = 
   let x' = freshen ns x 
-  in SLam (gp p) [(x',ty)] (openAll gp (x':ns) (open x' t))
+  in SLam (gp p) [([x'],ty)] (openAll gp (x':ns) (open x' t))
 openAll gp ns (App p t u) = SApp (gp p) (openAll gp ns t) (openAll gp ns u)
 openAll gp ns (Fix p f fty x xty t) = 
   let 
@@ -129,12 +130,13 @@ t2doc :: Bool     -- Debe ser un átomo?
 {- t2doc at x = text (show x) -}
 t2doc at (SV _ x) = name2doc x
 t2doc at (SConst _ c) = c2doc c
-t2doc at (SLam _ ((v,ty):xs) t) =
+t2doc at (SLam _ param t) =
   parenIf at $
   sep [sep [ keywordColor (pretty "fun")
            , binding2doc (v,ty)
            , opColor(pretty "->")]
       , nest 2 (t2doc False t)]
+  where ((v,ty):xs) = dbnd param
 
 t2doc at t@(SApp _ _ _) =
   let (h, ts) = collectApp t in
@@ -197,4 +199,7 @@ ppDecl (Decl p x t) = do
                        , defColor (pretty "=")] 
                    <+> nest 2 (t2doc False (openAll fst (map declName gdecl) t)))
                          
-
+dbnd :: [([Name], Ty)] -> [(Name, Ty)]
+dbnd [] = []
+dbnd (([], ty):rs) = dbnd rs
+dbnd ((x:xs, ty):rs) = (x, ty) : dbnd ((xs, ty):rs)

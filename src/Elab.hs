@@ -14,7 +14,7 @@ module Elab ( elab, elabDecl, elabDeclType, elabTermType ) where
 
 import Lang
 import Subst
-import PPrint (freshen)
+import PPrint ( freshen, dbnd )
 import MonadFD4
 import Common ( Pos )
 -- | 'elab' transforma variables ligadas en índices de de Bruijn
@@ -31,7 +31,9 @@ elab' env (SV p v) =
     else V p (Global v)
 
 elab' _ (SConst p c) = Const p c
-elab' env (SLam p ((v, ty):xs) t) = Lam p v ty (close v (elab' (v:env) (slam p xs t)))
+elab' env (SLam p param t) = Lam p v ty (close v (elab' (v:env) (slam p ys t)))
+  where ((v, ty):xs) = dbnd param
+        ys = implode xs
 elab' env (SFix p (f,fty) (x,xty) xs t) = Fix p f fty x xty (close2 f x (elab' (x:f:env) (slam p xs t)))
 elab' env (SIfZ p c t e)         = IfZ p (elab' env c) (elab' env t) (elab' env e)
 -- Operadores binarios
@@ -43,12 +45,22 @@ elab' env (SPrint i str Nothing) = let v = (freshen env "x") in Lam i v NatTy (c
 elab' env (SApp p h a) = App p (elab' env h) (elab' env a)
 elab' env (SLet p (v,vty) def body) =
   Let p v vty (elab' env def) (close v (elab' (v:env) body))
-elab' env (SLetLam p False (f, ((v, tv):xs), tf) def body) =
-  Let p f (mkArr (tv:(map snd xs)) tf) (Lam p v tv (close v (elab' (v:env) (slam p xs def)))) (close f (elab' (f:env) body))
-elab' env (SLetLam p True (f, ((v, tv):xs), tf) def body) =
-  Let p f (mkArr (tv:(map snd xs)) tf) (Fix p f (mkArr (tv:(map snd xs)) tf) v tv (close2 f v (elab' (v:f:env) (slam p xs def)))) (close f (elab' (f:env) body))
+elab' env (SLetLam p False (f, param, tf) def body) =
+  Let p f (mkArr (tv:(map snd xs)) tf) (Lam p v tv (close v (elab' (v:env) (slam p ys def)))) (close f (elab' (f:env) body))
+  where ((v, tv):xs) = dbnd param
+        ys = implode xs
+elab' env (SLetLam p True (f, param, tf) def body) =
+  Let p f (mkArr (tv:(map snd xs)) tf) (Fix p f (mkArr (tv:(map snd xs)) tf) v tv (close2 f v (elab' (v:f:env) (slam p ys def)))) (close f (elab' (f:env) body))
+  where ((v, tv):xs) = dbnd param
+        ys = implode xs
 
-slam :: Pos -> [(Name, Ty)] -> STermTy -> STermTy
+
+implode :: [(Name, Ty)] -> [([Name], Ty)]
+implode xs = map (\(x,y) -> ([x], y)) xs
+
+
+
+slam :: Pos -> [([Name], Ty)] -> STermTy -> STermTy
 slam p [] def = def
 slam p xs def = (SLam p xs def)
 
@@ -60,8 +72,10 @@ elabDecl :: MonadFD4 m => SDeclTy STermTy -> m (Maybe (Decl Term))
 elabDecl (SDecl i f def) = do return (Just (Decl i f (elab' [] def)))
 elabDecl (SDeclLam i False f xs tf def) = do return (Just (Decl i f (elab' [] def')))
   where def' = (SLam i xs def)
-elabDecl (SDeclLam i True f ((v, tv):xs) tf def) = do return (Just (Decl i f def'))
-  where def' = (elab' [] (SFix i (f, mkArr (map snd ((v, tv):xs)) tf) (v, tv) xs def))
+elabDecl (SDeclLam i True f param tf def) = do return (Just (Decl i f def'))
+  where def' = (elab' [] (SFix i (f, mkArr (map snd ((v, tv):xs)) tf) (v, tv) ys def))
+        ((v, tv):xs) = dbnd param
+        ys = implode xs
 elabDecl (SDeclType i n t) = do ty <- lookupTyDef n
                                 case ty of
                                   Nothing -> do addTypeDef (n, t)
@@ -81,12 +95,12 @@ typeResolver (SFunTy t1 t2) p = do
                                   t2' <- typeResolver t2 p
                                   return (FunTy t1' t2')
 
-styBinder :: MonadFD4 m => Pos -> (a, STy) -> m (a, Ty)
+styBinder :: MonadFD4 m => Pos -> ([a], STy) -> m ([a], Ty)
 styBinder i (v, ty) =
   do ty' <- typeResolver ty i
      return (v, ty')
   
-listElemTypeResolver :: MonadFD4 m => Pos -> [(a, STy)] -> m [(a, Ty)]
+listElemTypeResolver :: MonadFD4 m => Pos -> [([a], STy)] -> m [([a], Ty)]
 listElemTypeResolver i bs = mapM (styBinder i) bs
 
 -- Se resuelven los tipos superficiales.
