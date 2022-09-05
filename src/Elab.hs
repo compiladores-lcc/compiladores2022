@@ -31,10 +31,8 @@ elab' env (SV p v) =
     else V p (Global v)
 
 elab' _ (SConst p c) = Const p c
-elab' env (SLam p [(v, ty)] t) = Lam p v ty (close v (elab' (v:env) t))
-elab' env (SLam p ((v, ty):xs) t) = Lam p v ty (close v (elab' (v:env) (SLam p xs t)))
-elab' env (SFix p (f,fty) (x,xty) [] t) = Fix p f fty x xty (close2 f x (elab' (x:f:env) t))
-elab' env (SFix p (f,fty) (x,xty) xs t) = Fix p f fty x xty (close2 f x (elab' (x:f:env) (SLam p xs t)))
+elab' env (SLam p ((v, ty):xs) t) = Lam p v ty (close v (elab' (v:env) (slam p xs t)))
+elab' env (SFix p (f,fty) (x,xty) xs t) = Fix p f fty x xty (close2 f x (elab' (x:f:env) (slam p xs t)))
 elab' env (SIfZ p c t e)         = IfZ p (elab' env c) (elab' env t) (elab' env e)
 -- Operadores binarios
 elab' env (SBinaryOp i o t u) = BinaryOp i o (elab' env t) (elab' env u)
@@ -43,31 +41,33 @@ elab' env (SPrint i str (Just t)) = Print i str (elab' env t)
 elab' env (SPrint i str Nothing) = let v = (freshen env "x") in Lam i v NatTy (close v (elab' (v:env) (SPrint i str (Just (SV i v)))))
 -- Aplicaciones generales
 elab' env (SApp p h a) = App p (elab' env h) (elab' env a)
-elab' env (SLet p (v,vty) def body) =  
+elab' env (SLet p (v,vty) def body) =
   Let p v vty (elab' env def) (close v (elab' (v:env) body))
-elab' env (SLetLam p False (f, [(v, tv)], tf) def body) =
-  Let p f (FunTy tv tf) (Lam p v tv (close v (elab' (v:env) def))) (close f (elab' (f:env) body))
 elab' env (SLetLam p False (f, ((v, tv):xs), tf) def body) =
-  Let p f (FunTy tv (FunTy (typeConstructor xs) tf)) (Lam p v tv (close v (elab' (v:env) (SLam p xs def)))) (close f (elab' (f:env) body))
-elab' env (SLetLam p True (f, [(v, tv)], tf) def body) =
-  Let p f (FunTy tv tf) (Fix p f (FunTy tv tf) v tv (close2 f v (elab' (v:f:env) def))) (close f (elab' (f:env) body))
+  Let p f (mkArr (tv:(map snd xs)) tf) (Lam p v tv (close v (elab' (v:env) (slam p xs def)))) (close f (elab' (f:env) body))
 elab' env (SLetLam p True (f, ((v, tv):xs), tf) def body) =
-  Let p f (FunTy tv (FunTy (typeConstructor xs) tf)) (Fix p f (FunTy tv (FunTy (typeConstructor xs) tf)) v tv (close2 f v (elab' (v:f:env) (SLam p xs def)))) (close f (elab' (f:env) body))
+  Let p f (mkArr (tv:(map snd xs)) tf) (Fix p f (mkArr (tv:(map snd xs)) tf) v tv (close2 f v (elab' (v:f:env) (slam p xs def)))) (close f (elab' (f:env) body))
 
-typeConstructor :: [(Name, Ty)] -> Ty
-typeConstructor [(v, ty)] = ty
-typeConstructor ((v, ty):xs) = FunTy ty (typeConstructor xs)
+slam :: Pos -> [(Name, Ty)] -> STermTy -> STermTy
+slam p [] def = def
+slam p xs def = (SLam p xs def)
+
+mkArr :: [Ty] -> Ty -> Ty
+mkArr [] cod = cod
+mkArr (t:doms) cod = FunTy t (mkArr doms cod)
 
 elabDecl :: MonadFD4 m => SDeclTy STermTy -> m (Maybe (Decl Term))
 elabDecl (SDecl i f def) = do return (Just (Decl i f (elab' [] def)))
 elabDecl (SDeclLam i False f xs tf def) = do return (Just (Decl i f (elab' [] def')))
   where def' = (SLam i xs def)
-elabDecl (SDeclLam i True f ([(v, tv)]) tf def) = do return (Just (Decl i f def'))
-  where def' = (Fix i f (FunTy tv tf) v tv (close2 f v (elab' (v:[f]) def)))
 elabDecl (SDeclLam i True f ((v, tv):xs) tf def) = do return (Just (Decl i f def'))
-  where def' = (Fix i f (FunTy tv (FunTy (typeConstructor xs) tf)) v tv (close2 f v (elab' (v:[f]) (SLam i xs def))))
-elabDecl (SDeclType i n t) = do addTypeDef (n, t)
-                                return Nothing
+  where def' = (elab' [] (SFix i (f, mkArr (map snd ((v, tv):xs)) tf) (v, tv) xs def))
+elabDecl (SDeclType i n t) = do ty <- lookupTyDef n
+                                case ty of
+                                  Nothing -> do addTypeDef (n, t)
+                                                return Nothing 
+                                  Just _ -> failPosFD4 i $ n ++" ya está declarado"
+                                
 
 typeResolver :: MonadFD4 m => STy -> Pos -> m (Ty)
 typeResolver SNatTy p = return NatTy
@@ -81,20 +81,15 @@ typeResolver (SFunTy t1 t2) p = do
                                   t2' <- typeResolver t2 p
                                   return (FunTy t1' t2')
 
-listElemTypeResolver :: MonadFD4 m => Pos -> [(Name, STy)] -> m [(Name, Ty)]
-listElemTypeResolver i xs = sequence (map pasaje (map (\(x,y) -> (x, typeResolver y i)) xs))
+styBinder :: MonadFD4 m => Pos -> (a, STy) -> m (a, Ty)
+styBinder i (v, ty) =
+  do ty' <- typeResolver ty i
+     return (v, ty')
+  
+listElemTypeResolver :: MonadFD4 m => Pos -> [(a, STy)] -> m [(a, Ty)]
+listElemTypeResolver i bs = mapM (styBinder i) bs
 
-pasaje :: MonadFD4 m => (Name, m Ty) -> m (Name, Ty)
-pasaje (x, y) = do y' <- y
-                   return (x, y')
-
-
- 
---         typeResolver         pasaje             ????           return
---[(Name, STy)] -> [(Name, m Ty)] -> [m (Name, Ty)] -> [(Name, Ty)] -> m [(Name, Ty)]
-
---listElemTypeResolver2 i (x,y) = do t' <- typeResolver y i
-
+-- Se resuelven los tipos superficiales.
 elabTermType :: MonadFD4 m => STerm -> m (STermTy)
 elabTermType (SV i v) = return (SV i v)
 elabTermType (SConst i c) = return (SConst i c)

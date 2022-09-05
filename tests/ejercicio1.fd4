@@ -69,9 +69,13 @@ let restaaz (a:Nat) (b:Nat) :Nat = a - b
 
 let rec factaz (m:Nat):Nat = ifz m then 1 else mult m (factaz (m - 1))
 
-let rec multaz (m:Nat)(n:Nat):Nat =  
+let rec multaz (m:Nat)(n:Nat)(b:Nat)(a: Nat):Nat =  
             ifz n
             then 0
             else (ifz n - 1
                     then m
-                    else m + (multaz m (n - 1)))
+                    else m + (multaz m (n - 1) 1 4))
+
+type funNat = Nat->Nat
+
+#type funNat = Nat
