@@ -63,7 +63,7 @@ let minf = (fix(min: Nat->(Nat->Nat)->Nat)(m:Nat) ->
 #let testMinfF = ifb false (fun (x:Nat)-> 0) (fun (x:Nat) -> (minf (fun(j:Nat) -> (print "happy\n" 1))))
 
 # Declaraciones con azucar sintactico.
-let menos1az (a : Nat) : Nat = a - 1
+let menos1az (a : Nat) : Nat = a - 1 
 
 let restaaz (a:Nat) (b:Nat) :Nat = a - b
 
