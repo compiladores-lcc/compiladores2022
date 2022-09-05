@@ -104,6 +104,7 @@ repl args = do
                        maybe loop (`when` loop) b
 
 loadFile ::  MonadFD4 m => FilePath -> m [SDecl STerm]
+
 loadFile f = do
     let filename = reverse(dropWhile isSpace (reverse f))
     x <- liftIO $ catch (readFile filename)
@@ -159,6 +160,7 @@ handleDecl d = do
                                 Nothing -> return Nothing
                                 Just tt -> do t' <- tcDecl tt
                                               return (Just t')
+
 
 
 data Command = Compile CompileForm
