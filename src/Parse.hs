@@ -177,13 +177,13 @@ letexp :: P STerm
 letexp = do
   i <- getPos
   reserved "let"
-  isRec <- (reserved "rec" >> return True) <|> return False
+  isR <- (reserved "rec" >> return True) <|> return False
   bindings <- binders
   reservedOp "="  
   def <- expr
   reserved "in"
   body <- expr
-  return (SLet i isRec bindings def body)
+  return (SLet i isR bindings def body)
 
 -- | Parser de términos
 tm :: P STerm
@@ -206,12 +206,12 @@ letDecl :: P SDecl
 letDecl = do 
      i <- getPos
      reserved "let"
-     isRec <- (reserved "rec" >> return True) <|> return False
-     (f, t):args <- binders
+     isR <- (reserved "rec" >> return True) <|> return False
+     args <- binders
      reservedOp "="
      def <- expr
      notFollowedBy (reserved "in")
-     return (LetDecl i f (SLet i isRec ((f, t):args) def (SV i f))) -- Basicamente las decl crean un let adentro, capaz no era la idea xd
+     return (LetDecl i isR args def)
 
 -- | Parser de programas (listas de declaraciones) 
 program :: P [SDecl]

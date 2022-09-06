@@ -1,5 +1,7 @@
-let gcd = fix (gcd: Nat -> Nat -> Nat) (m : Nat) -> fun (n : Nat) -> ifz n then m else (ifz m then n else (ifz (n - m) then (gcd (m - n) n) else (gcd m (n - m))))
+type Jorge = Nat -> Nat -> Nat
+let a : Jorge = let rec gcd (m : Nat) (n : Nat) : Nat = ifz n then m else (ifz m then n else (ifz (n - m) then (gcd (m - n) n) else (gcd m (n - m)))) in gcd
 
+let printGeorge : Nat -> Nat = print
 
 {-
 lasdjflasdljfajlsdf

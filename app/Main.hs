@@ -30,7 +30,7 @@ import Global
 import Errors
 import Lang
 import Parse ( P, tm, program, declOrTm, runP )
-import Elab ( elab, elabType, elabDecl, deElab )
+import Elab ( elab, elabTypeWithTag, elabDecl)
 import Eval ( eval )
 import PPrint ( pp , ppTy, ppDecl )
 import MonadFD4
@@ -132,28 +132,27 @@ handleDecl d = do
         m <- getMode
         case m of
           Interactive -> do
-              case d of 
-                LetDecl pos s st -> do
+              case d of
+                LetDecl {} -> do
                   elabbed <- elabDecl d
-                  (Decl p x tt) <- tcDecl elabbed
+                  (Decl p x ty tt) <- tcDecl elabbed
                   te <- eval tt
-                  addDecl (Decl p x te)
+                  addDecl (Decl p x ty te)
                 TypeDecl pos s st -> do
-                  st' <- elabType st
+                  st' <- elabTypeWithTag s st
                   addTypeSyn (s, st')
-              
           Typecheck -> do
               f <- getLastFile
               printFD4 ("Chequeando tipos de "++f)
-              case d of 
-                LetDecl pos s st -> do
+              case d of
+                LetDecl {} -> do
                   elabbed <- elabDecl d
                   td <- tcDecl elabbed
                   addDecl td
                   ppterm <- ppDecl td  --td'
                   printFD4 ppterm
                 TypeDecl pos s st -> do
-                  st' <- elabType st
+                  st' <- elabTypeWithTag s st
                   addTypeSyn (s, st')
               -- opt <- getOpt
               -- td' <- if opt then optimize td else td
@@ -222,7 +221,11 @@ handleCommand cmd = do
        Quit   ->  return False
        Noop   ->  return True
        Help   ->  printFD4 (helpTxt commands) >> return True
-       Browse ->  do  printFD4 (unlines (reverse (nub (map declName glb))))
+       Browse ->  do
+                      printFD4 "---Declaraciones de términos---"  
+                      printFD4 (unlines (reverse (nub (map declName glb))))
+                      printFD4 "---Sinónimos de tipos---"
+                      printFD4 (unlines (reverse (nub (map fst glbTy))))
                       return True
        Compile c ->
                   do  case c of

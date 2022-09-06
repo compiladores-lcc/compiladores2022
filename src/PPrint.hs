@@ -65,9 +65,32 @@ openAll gp ns (Fix p f fty x xty t) =
 openAll gp ns (IfZ p c t e) = SIfZ (gp p) (openAll gp ns c) (openAll gp ns t) (openAll gp ns e)
 openAll gp ns (Print p str t) = SPrint (gp p) str (Just $ openAll gp ns t)
 openAll gp ns (BinaryOp p op t u) = SBinaryOp (gp p) op (openAll gp ns t) (openAll gp ns u)
-openAll gp ns (Let p v ty m n) = 
-    let v'= freshen ns v 
+openAll gp ns (Let p v ty m n) =
+    let v'= freshen ns v
     in  SLet (gp p) False [(v',deElab ty)] (openAll gp ns m) (openAll gp (v':ns) (open v' n)) -- TDOO: Que use let rec
+
+resugar :: STerm -> STerm
+-- Lambda de lambda (varios args)
+resugar (SLam pos args (SLam _ moreArgs b)) = resugar $ SLam pos (args ++ moreArgs) b
+-- Fix de lambda (varios args)
+resugar (SFix pos f args (SLam _ moreArgs b)) = resugar $ SFix pos f (args ++ moreArgs) b
+-- Let de lambda (convertir a let piola)
+resugar (SLet pos isR binders (SLam _ moreBinders b) body) = resugar $ SLet pos isR (binders ++ moreBinders) b body
+-- Let de fix (convertir a let piola) (es importante que solo lo haga cuando el fix es el primer argumento (o sea cuando en la lista de binders solo hay una cosa))
+resugar (SLet pos _ [binder] (SFix _ f moreBinders b) body) = resugar $ SLet pos True (binder:moreBinders) b body
+-- Lambda de print aplicado a la variable de ese lambda (convertir a print parcial)
+resugar t@(SLam _ args (SPrint pos s (Just (SV _ x)))) = if (fst . last) args == x then SPrint pos s Nothing else t
+-- Casos normales
+resugar (SV pos n) = SV pos n
+resugar (SConst pos c) = SConst pos c
+resugar (SLam pos args body) = SLam pos args (resugar body)
+resugar (SApp pos t t') = SApp pos (resugar t) (resugar t')
+resugar (SPrint pos s Nothing) = SPrint pos s Nothing
+resugar (SPrint pos s (Just e)) = SPrint pos s (Just $ resugar e)
+resugar (SBinaryOp pos bo t t') = SBinaryOp pos bo (resugar t) (resugar t')
+resugar (SFix pos f args t) = SFix pos f args (resugar t)
+resugar (SIfZ pos cond thenSt elseSt) = SIfZ pos (resugar cond) (resugar thenSt) (resugar elseSt)
+resugar (SLet pos name binders def body) = SLet pos name binders (resugar def) (resugar body)
 
 --Colores
 constColor :: Doc AnsiStyle -> Doc AnsiStyle
@@ -158,17 +181,20 @@ t2doc at (SIfZ _ c t e) =
 
 t2doc at (SPrint _ str Nothing) =
   parenIf at $
-  sep [keywordColor (pretty "print"), pretty (show str)]
+  sep (keywordColor (pretty "print") : [pretty (show str) | str /= ""])
 t2doc at (SPrint _ str (Just t)) =
   parenIf at $
-  sep [keywordColor (pretty "print"), pretty (show str), t2doc True t]
+  sep ([keywordColor (pretty "print")] ++ [pretty (show str) | str /= ""] ++ [t2doc True t])
 
-t2doc at (SLet _ isRec args t t') =
+t2doc at (SLet _ isR [] t t') = error "NOOOOOOOO"
+t2doc at (SLet _ isR ((n, ty):args) t t') =
   parenIf at $
   sep [
     sep ([keywordColor (pretty "let")]
-       ++ [keywordColor (pretty "rec") | isRec]
+       ++ [keywordColor (pretty "rec") | isR]
+       ++ [name2doc n]
        ++ map binding2doc args
+       ++ [pretty ":", ty2doc (getLast ty)]
        ++ [opColor (pretty "=") ])
   , nest 2 (t2doc False t)
   , keywordColor (pretty "in")
@@ -177,6 +203,10 @@ t2doc at (SLet _ isRec args t t') =
 t2doc at (SBinaryOp _ o a b) =
   parenIf at $
   t2doc True a <+> binary2doc o <+> t2doc True b
+
+getLast :: SType -> SType
+getLast (FunSTy pos st' st2) = getLast st2
+getLast a = a
 
 binding2doc :: (Name, SType) -> Doc AnsiStyle
 binding2doc (x, ty) =
@@ -188,17 +218,17 @@ pp :: MonadFD4 m => TTerm -> m String
 {- pp = show -}
 pp t = do
        gdecl <- gets glb
-       return (render . t2doc False $ openAll fst (map declName gdecl) t)
+       return (render . t2doc False $ resugar $ openAll fst (map declName gdecl) t)
 
 render :: Doc AnsiStyle -> String
 render = unpack . renderStrict . layoutSmart defaultLayoutOptions
 
 -- | Pretty printing de declaraciones
 ppDecl :: MonadFD4 m => Decl TTerm -> m String
-ppDecl (Decl p x t) = do
+ppDecl (Decl p x ty t) = do
   gdecl <- gets glb
   return (render $ sep [defColor (pretty "let")
-                       , name2doc x
+                       , binding2doc (x, deElab ty)
                        , defColor (pretty "=")]
-                   <+> nest 2 (t2doc False (openAll fst (map declName gdecl) t)))                         
+                   <+> nest 2 (t2doc False (resugar $ openAll fst (map declName gdecl) t)))
 

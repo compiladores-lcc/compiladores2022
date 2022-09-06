@@ -44,8 +44,8 @@ data STy info =
 
 -- | AST de Tipos
 data Ty =
-      NatTy
-    | FunTy Ty Ty
+      NatTy (Maybe Name) -- El nombre, si viene de un sinónimo de tipo
+    | FunTy (Maybe Name) Ty Ty -- Lo mismo
     deriving (Show,Eq)
 
 type Name = String
@@ -61,13 +61,14 @@ data BinaryOp = Add | Sub
   deriving Show
 
 data SDecl =
-    LetDecl { sDeclPos :: Pos, sDeclName :: Name, sDeclBody :: STerm }
+    LetDecl { sDeclPos :: Pos, isRec :: Bool, sDeclBinders :: [(Name, SType)], sDeclBody :: STerm }
   | TypeDecl { sDeclPos :: Pos, sDeclName :: Name, sType :: SType }
 
 -- | tipo de datos de declaraciones, parametrizado por el tipo del cuerpo de la declaración
 data Decl a = Decl
   { declPos  :: Pos
   , declName :: Name
+  , declType :: Ty
   , declBody :: a
   }
   deriving (Show, Functor)
@@ -121,6 +122,10 @@ getInfo (Fix i _ _ _ _ _ ) = i
 getInfo (IfZ i _ _ _     ) = i
 getInfo (Let i _ _ _ _   ) = i
 getInfo (BinaryOp i _ _ _) = i
+
+getSyn :: Ty -> Maybe Name
+getSyn (NatTy n) = n
+getSyn (FunTy n _ _) = n
 
 getTy :: TTerm -> Ty
 getTy = snd . getInfo

@@ -10,11 +10,11 @@ Este módulo permite elaborar términos y declaraciones para convertirlas desde
 fully named (@STerm) a locally closed (@Term@)
 -}
 
-module Elab (elab, elabDecl, elabType, deElab) where
+module Elab (elab, elabDecl, elabTypeWithTag, deElab) where
 
 import Lang
 import Subst
-import MonadFD4 (MonadFD4, lookupTypeSyn, failPosFD4)
+import MonadFD4 (MonadFD4, lookupTypeSyn, failPosFD4, failFD4)
 import Common (Pos(NoPos))
 
 -- | 'elab' transforma variables ligadas en índices de de Bruijn
@@ -30,10 +30,10 @@ elab' env (SV p v) =
     then V p (Free v)
     else V p (Global v)
 elab' _ (SConst p c) = return $ Const p c
-elab' env (SLam p [] t) = error "Hay un lambda sin argumentos wtf"
+elab' env (SLam p [] t) = failFD4 "Intentando elaborar un lambda sin argumentos"
 elab' env (SLam p [(v,ty)] t) = Lam p v <$> elabType ty <*> (close v <$> elab' (v:env) t)
 elab' env (SLam p ((v, ty) : args) t) = Lam p v <$> elabType ty <*> (close v <$> elab' (v : env) (SLam p args t))
-elab' env (SFix p _ [] t) = error "Hay un fix sin argumentos wtf"
+elab' env (SFix p _ [] t) = failFD4 "Intentando elaborar un fix sin argumentos"
 elab' env (SFix p (f,fty) [(x,xty)] t) = do
   fty' <- elabType fty
   xty' <- elabType xty
@@ -59,20 +59,33 @@ elab' env (SLet p False ((fv, fty) : args) def body) =
 elab' env (SLet p True ((fv, fty) : args) def body) = do
   let fty' = foldr1 (FunSTy p) (map snd args ++ [fty])
   Let p fv <$> elabType fty' <*> elab' (map fst args ++ env) (SFix p (fv, fty') args def) <*> (close fv <$> elab' (fv : env) body)
-elab' _ _ = error "Error extraño"
+elab' _ _ = failFD4 "Error extraño durante elaboración"
 
 elabType :: MonadFD4 m => SType -> m Ty
-elabType (NatSTy _) = return NatTy
-elabType (FunSTy _ t t') = FunTy <$> elabType t <*> elabType t'
+elabType (NatSTy _) = return $ NatTy Nothing
+elabType (FunSTy _ t t') = FunTy Nothing <$> elabType t <*> elabType t'
 elabType (SynSTy i t) = do
   a <- lookupTypeSyn t
   case a of
     Nothing -> failPosFD4 i ("No se encontró el sinónimo de tipo " ++ show t)
     Just ty -> return ty
 
+elabTypeWithTag :: MonadFD4 m => Name -> SType -> m Ty
+elabTypeWithTag n x = do
+  t <- elabType x
+  case t of
+    NatTy _ -> return $ NatTy $ Just n
+    FunTy _ ty ty' -> return $ FunTy (Just n) ty ty'
+
 elabDecl :: MonadFD4 m => SDecl -> m (Decl Term)
-elabDecl (LetDecl pos s st) = Decl pos s <$> elab st
+elabDecl (LetDecl pos _ [] _) = failPosFD4 pos "Declaración sin binders"
+elabDecl (LetDecl pos _ [(f, t)] def) = Decl pos f <$> elabType t <*> elab def
+elabDecl (LetDecl pos False ((f, t):args) def) = Decl pos f <$> elabType (foldr1 (FunSTy pos) (t:map snd args)) <*> elab (SLam pos args def)
+elabDecl (LetDecl pos True ((f, t):args) def) = Decl pos f <$> elabType (foldr1 (FunSTy pos) (t:map snd args)) <*> elab (SFix pos (f, foldr1 (FunSTy pos) (t:map snd args)) args def)
+elabDecl (TypeDecl pos s _) = failPosFD4 pos ("Se intentó elaborar una declaración de sinónimo de tipo: " ++ s)
 
 deElab :: Ty -> SType
-deElab NatTy = NatSTy NoPos
-deElab (FunTy ty ty') = FunSTy NoPos (deElab ty) (deElab ty')
+deElab (NatTy Nothing) = NatSTy NoPos
+deElab (NatTy (Just n)) = SynSTy NoPos n
+deElab (FunTy Nothing ty ty') = FunSTy NoPos (deElab ty) (deElab ty')
+deElab (FunTy (Just n) _ _) = SynSTy NoPos n

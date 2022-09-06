@@ -17,6 +17,7 @@ import Global
 import MonadFD4
 import PPrint
 import Subst
+import Control.Applicative (Alternative((<|>)))
 
 
 -- | 'tc' chequea y devuelve el tipo de un término 
@@ -32,14 +33,14 @@ tc (V p (Free n)) bs = case lookup n bs of
 tc (V p (Global n)) bs = case lookup n bs of
                            Nothing -> failPosFD4 p $ "Variable no declarada "++ppName n
                            Just ty -> return (V (p,ty) (Global n))
-tc (Const p (CNat n)) _ = return (Const (p,NatTy) (CNat n))
+tc (Const p (CNat n)) _ = return (Const (p,NatTy Nothing) (CNat n))
 tc (Print p str t) bs = do 
       tt <- tc t bs
-      expect NatTy tt
-      return (Print (p, NatTy) str tt)
+      expect (NatTy Nothing) tt
+      return (Print (p, getTy tt) str tt)
 tc (IfZ p c t t') bs = do
        ttc  <- tc c bs
-       expect NatTy ttc
+       expect (NatTy Nothing) ttc
        tt  <- tc t bs
        tt' <- tc t' bs
        let ty = getTy tt
@@ -47,7 +48,7 @@ tc (IfZ p c t t') bs = do
        return (IfZ (p,ty) ttc tt tt')
 tc (Lam p v ty t) bs = do
          tt <- tc (open v t) ((v,ty):bs)
-         return (Lam (p, FunTy ty (getTy tt)) v ty (close v tt))
+         return (Lam (p, FunTy Nothing ty (getTy tt)) v ty (close v tt))
 tc (App p t u) bs = do
          tt <- tc t bs
          (dom,cod) <- domCod tt
@@ -70,10 +71,10 @@ tc (Let p v ty def t) bs = do
          return (Let (p,getTy tt) v ty tdef (close v tt))
 tc (BinaryOp p op t u) bs = do
          tt <- tc t bs
-         expect NatTy tt
+         expect (NatTy Nothing) tt
          tu <- tc u bs
-         expect NatTy tu
-         return (BinaryOp (p,NatTy) op tt tu)
+         expect (NatTy Nothing) tu
+         return (BinaryOp (p, NatTy (getSyn (getTy tt) <|> getSyn (getTy tu))) op tt tu)
 
 -- | @'typeError' t s@ lanza un error de tipo para el término @t@ 
 typeError :: MonadFD4 m => TTerm   -- ^ término que se está chequeando  
@@ -89,27 +90,33 @@ expect :: MonadFD4 m => Ty    -- ^ tipo esperado
                      -> TTerm
                      -> m TTerm
 expect ty tt = let ty' = getTy tt
-               in if ty == ty' then return tt 
+               in if sameTy ty ty' then return tt 
                                else typeError tt $ 
               "Tipo esperado: "++ ppTy ty
             ++"\npero se obtuvo: "++ ppTy ty'
+
+sameTy :: Ty -> Ty -> Bool
+sameTy (NatTy _) (NatTy _) = True
+sameTy (FunTy _ t t') (FunTy _ t2 t2') = sameTy t t2 && sameTy t' t2'
+sameTy _ _ = False
 
 -- | 'domCod chequea que un tipo sea función
 -- | devuelve un par con el tipo del dominio y el codominio de la función
 domCod :: MonadFD4 m => TTerm -> m (Ty, Ty)
 domCod tt = case getTy tt of
-    FunTy d c -> return (d, c)
+    FunTy _ d c -> return (d, c)
     _         -> typeError tt $ "Se esperaba un tipo función, pero se obtuvo: " ++ ppTy (getTy tt)
 
 -- | 'tcDecl' chequea el tipo de una declaración
 -- y la agrega al entorno de tipado de declaraciones globales
 tcDecl :: MonadFD4 m  => Decl Term -> m (Decl TTerm)
-tcDecl (Decl p n t) = do
+tcDecl (Decl p n ty t) = do
     --chequear si el nombre ya está declarado
     mty <- lookupTy n
     case mty of
         Nothing -> do  --no está declarado 
                   s <- get
-                  tt <- tc t (tyEnv s)                 
-                  return (Decl p n tt)
+                  tt <- tc t (tyEnv s)
+                  expect ty tt         
+                  return (Decl p n ty tt)
         Just _  -> failPosFD4 p $ n ++" ya está declarado"
