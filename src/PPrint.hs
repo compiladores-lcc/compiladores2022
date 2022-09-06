@@ -19,7 +19,7 @@ module PPrint (
 
 import Lang
 import Subst ( open, open2 )
-import Common ( Pos )
+import Elab (deElab)
 
 import Data.Text ( unpack )
 import Prettyprinter.Render.Terminal
@@ -36,6 +36,7 @@ import Prettyprinter
       Pretty(pretty) )
 import MonadFD4 ( gets, MonadFD4 )
 import Global ( GlEnv(glb) )
+import Common (Pos)
 
 freshen :: [Name] -> Name -> Name
 freshen ns n = let cands = n : map (\i -> n ++ show i) [0..]
@@ -54,19 +55,19 @@ openAll gp ns (V p v) = case v of
 openAll gp ns (Const p c) = SConst (gp p) c
 openAll gp ns (Lam p x ty t) =
   let x' = freshen ns x
-  in SLam (gp p) [(x',ty)] (openAll gp (x':ns) (open x' t))
+  in SLam (gp p) [(x', deElab ty)] (openAll gp (x':ns) (open x' t))
 openAll gp ns (App p t u) = SApp (gp p) (openAll gp ns t) (openAll gp ns u)
 openAll gp ns (Fix p f fty x xty t) =
   let
     x' = freshen ns x
     f' = freshen (x':ns) f
-  in SFix (gp p) (f',fty) [(x',xty)] (openAll gp (x:f:ns) (open2 f' x' t))
+  in SFix (gp p) (f', deElab fty) [(x', deElab xty)] (openAll gp (x:f:ns) (open2 f' x' t))
 openAll gp ns (IfZ p c t e) = SIfZ (gp p) (openAll gp ns c) (openAll gp ns t) (openAll gp ns e)
 openAll gp ns (Print p str t) = SPrint (gp p) str (Just $ openAll gp ns t)
 openAll gp ns (BinaryOp p op t u) = SBinaryOp (gp p) op (openAll gp ns t) (openAll gp ns u)
 openAll gp ns (Let p v ty m n) = 
     let v'= freshen ns v 
-    in  SLet (gp p) False [(v',ty)] (openAll gp ns m) (openAll gp (v':ns) (open v' n)) -- TDOO: Que use let rec
+    in  SLet (gp p) False [(v',deElab ty)] (openAll gp ns m) (openAll gp (v':ns) (open v' n)) -- TDOO: Que use let rec
 
 --Colores
 constColor :: Doc AnsiStyle -> Doc AnsiStyle
@@ -93,14 +94,15 @@ ppName :: Name -> String
 ppName = id
 
 -- | Pretty printer para tipos (Doc)
-ty2doc :: Ty -> Doc AnsiStyle
-ty2doc NatTy     = typeColor (pretty "Nat")
-ty2doc (FunTy x@(FunTy _ _) y) = sep [parens (ty2doc x), typeOpColor (pretty "->"),ty2doc y]
-ty2doc (FunTy x y) = sep [ty2doc x, typeOpColor (pretty "->"),ty2doc y]
+ty2doc :: SType -> Doc AnsiStyle
+ty2doc (NatSTy _)    = typeColor (pretty "Nat")
+ty2doc (FunSTy _ x@(FunSTy _ _ _) y) = sep [parens (ty2doc x), typeOpColor (pretty "->"),ty2doc y]
+ty2doc (FunSTy _ x y) = sep [ty2doc x, typeOpColor (pretty "->"),ty2doc y]
+ty2doc (SynSTy _ n) = typeColor (pretty n)
 
 -- | Pretty printer para tipos (String)
 ppTy :: Ty -> String
-ppTy = render . ty2doc
+ppTy = render . ty2doc . deElab
 
 c2doc :: Const -> Doc AnsiStyle
 c2doc (CNat n) = constColor (pretty (show n))
@@ -176,7 +178,7 @@ t2doc at (SBinaryOp _ o a b) =
   parenIf at $
   t2doc True a <+> binary2doc o <+> t2doc True b
 
-binding2doc :: (Name, Ty) -> Doc AnsiStyle
+binding2doc :: (Name, SType) -> Doc AnsiStyle
 binding2doc (x, ty) =
   parens (sep [name2doc x, pretty ":", ty2doc ty])
 

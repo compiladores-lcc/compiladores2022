@@ -83,16 +83,18 @@ getPos :: P Pos
 getPos = do pos <- getPosition
             return $ Pos (sourceLine pos) (sourceColumn pos)
 
-tyatom :: P Ty
-tyatom = (reserved "Nat" >> return NatTy)
+tyatom :: P SType
+tyatom = (reserved "Nat" >> NatSTy <$> getPos)
+         <|> (SynSTy <$> getPos <*> var)
          <|> parens typeP
 
-typeP :: P Ty
+typeP :: P SType
 typeP = try (do
+          i <- getPos
           x <- tyatom
           reservedOp "->"
           y <- typeP
-          return (FunTy x y))
+          return (FunSTy i x y))
       <|> tyatom
 
 const :: P Const
@@ -123,7 +125,7 @@ atom =     (flip SConst <$> const <*> getPos)
        <|> printOp
 
 -- parsea un par (variable : tipo)
-binding :: P (Name, Ty)
+binding :: P (Name, SType)
 binding = do v <- var
              reservedOp ":"
              ty <- typeP
@@ -163,7 +165,7 @@ fix = do i <- getPos
          t <- expr
          return (SFix i (f,fty) args t)
 
-binders :: P [(Name, Ty)]
+binders :: P [(Name, SType)]
 binders = parens binders' <|> binders' where
   binders' = do
     f <- var
@@ -188,8 +190,20 @@ tm :: P STerm
 tm = app <|> lam <|> ifz <|> printOp <|> fix <|> letexp
 
 -- | Parser de declaraciones
-decl :: P (Decl STerm)
-decl = do 
+decl :: P SDecl
+decl = letDecl <|> typeSyn
+
+typeSyn :: P SDecl
+typeSyn = do
+  i <- getPos
+  reserved "type"
+  t <- tyIdentifier
+  reservedOp "="
+  def <- typeP
+  return $ TypeDecl i t def
+
+letDecl :: P SDecl
+letDecl = do 
      i <- getPos
      reserved "let"
      isRec <- (reserved "rec" >> return True) <|> return False
@@ -197,15 +211,15 @@ decl = do
      reservedOp "="
      def <- expr
      notFollowedBy (reserved "in")
-     return (Decl i f (SLet i isRec ((f, t):args) def (SV i f))) -- Basicamente las decl crean un let adentro, capaz no era la idea xd
+     return (LetDecl i f (SLet i isRec ((f, t):args) def (SV i f))) -- Basicamente las decl crean un let adentro, capaz no era la idea xd
 
 -- | Parser de programas (listas de declaraciones) 
-program :: P [Decl STerm]
+program :: P [SDecl]
 program = many decl
 
 -- | Parsea una declaración a un término
 -- Útil para las sesiones interactivas
-declOrTm :: P (Either (Decl STerm) STerm)
+declOrTm :: P (Either SDecl STerm)
 declOrTm =  try (Left <$> decl) <|> (Right <$> expr)
 
 -- Corre un parser, chequeando que se pueda consumir toda la entrada
