@@ -1,5 +1,5 @@
 type Jorge = Nat -> Nat -> Nat
-let a : Jorge = let rec gcd (m : Nat) (n : Nat) : Nat = ifz n then m else (ifz m then n else (ifz (n - m) then (gcd (m - n) n) else (gcd m (n - m)))) in gcd
+let f : Jorge = fix (f : Jorge) (n : Nat) (m : Nat) -> ifz n then m else (ifz m then n else (ifz (n - m) then (f (m - n) n) else (f m (n - m))))
 
 let printGeorge : Nat -> Nat = print
 

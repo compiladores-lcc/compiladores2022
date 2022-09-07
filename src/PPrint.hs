@@ -14,12 +14,13 @@ module PPrint (
     pp,
     ppTy,
     ppName,
-    ppDecl
+    ppDecl,
+    ppTypeSyn
     ) where
 
 import Lang
 import Subst ( open, open2 )
-import Elab (deElab)
+import Elab (deElabType, deElabDecl)
 
 import Data.Text ( unpack )
 import Prettyprinter.Render.Terminal
@@ -34,9 +35,10 @@ import Prettyprinter
       parens,
       Doc,
       Pretty(pretty) )
-import MonadFD4 ( gets, MonadFD4 )
+import MonadFD4 ( gets, MonadFD4, failPosFD4 )
 import Global ( GlEnv(glb) )
 import Common (Pos)
+import Data.List (delete)
 
 freshen :: [Name] -> Name -> Name
 freshen ns n = let cands = n : map (\i -> n ++ show i) [0..]
@@ -55,19 +57,19 @@ openAll gp ns (V p v) = case v of
 openAll gp ns (Const p c) = SConst (gp p) c
 openAll gp ns (Lam p x ty t) =
   let x' = freshen ns x
-  in SLam (gp p) [(x', deElab ty)] (openAll gp (x':ns) (open x' t))
+  in SLam (gp p) [(x', deElabType ty)] (openAll gp (x':ns) (open x' t))
 openAll gp ns (App p t u) = SApp (gp p) (openAll gp ns t) (openAll gp ns u)
 openAll gp ns (Fix p f fty x xty t) =
   let
     x' = freshen ns x
     f' = freshen (x':ns) f
-  in SFix (gp p) (f', deElab fty) [(x', deElab xty)] (openAll gp (x:f:ns) (open2 f' x' t))
+  in SFix (gp p) (f', deElabType fty) [(x', deElabType xty)] (openAll gp (x:f:ns) (open2 f' x' t))
 openAll gp ns (IfZ p c t e) = SIfZ (gp p) (openAll gp ns c) (openAll gp ns t) (openAll gp ns e)
 openAll gp ns (Print p str t) = SPrint (gp p) str (Just $ openAll gp ns t)
 openAll gp ns (BinaryOp p op t u) = SBinaryOp (gp p) op (openAll gp ns t) (openAll gp ns u)
 openAll gp ns (Let p v ty m n) =
     let v'= freshen ns v
-    in  SLet (gp p) False [(v',deElab ty)] (openAll gp ns m) (openAll gp (v':ns) (open v' n)) -- TDOO: Que use let rec
+    in  SLet (gp p) False [(v',deElabType ty)] (openAll gp ns m) (openAll gp (v':ns) (open v' n))
 
 resugar :: STerm -> STerm
 -- Lambda de lambda (varios args)
@@ -125,7 +127,7 @@ ty2doc (SynSTy _ n) = typeColor (pretty n)
 
 -- | Pretty printer para tipos (String)
 ppTy :: Ty -> String
-ppTy = render . ty2doc . deElab
+ppTy = render . ty2doc . deElabType
 
 c2doc :: Const -> Doc AnsiStyle
 c2doc (CNat n) = constColor (pretty (show n))
@@ -186,7 +188,15 @@ t2doc at (SPrint _ str (Just t)) =
   parenIf at $
   sep ([keywordColor (pretty "print")] ++ [pretty (show str) | str /= ""] ++ [t2doc True t])
 
-t2doc at (SLet _ isR [] t t') = error "NOOOOOOOO"
+t2doc at (SLet _ isR [] t t') =
+  parenIf at $
+  sep [
+    sep ([keywordColor (pretty "let")]
+       ++ [keywordColor (pretty "rec") | isR]
+       ++ [opColor (pretty "=") ])
+  , nest 2 (t2doc False t)
+  , keywordColor (pretty "in")
+  , nest 2 (t2doc False t') ]
 t2doc at (SLet _ isR ((n, ty):args) t t') =
   parenIf at $
   sep [
@@ -227,8 +237,15 @@ render = unpack . renderStrict . layoutSmart defaultLayoutOptions
 ppDecl :: MonadFD4 m => Decl TTerm -> m String
 ppDecl (Decl p x ty t) = do
   gdecl <- gets glb
-  return (render $ sep [defColor (pretty "let")
-                       , binding2doc (x, deElab ty)
-                       , defColor (pretty "=")]
-                   <+> nest 2 (t2doc False (resugar $ openAll fst (map declName gdecl) t)))
+  let (LetDecl p' isR ((x', ty'):args) def) = deElabDecl $ Decl p x ty (resugar $ openAll fst (delete x $ map declName gdecl) t)
+  return (render $ sep ([defColor (pretty "let")]
+                  ++ [defColor (pretty "rec") | isR]
+                  ++ [name2doc x']
+                  ++ map binding2doc args
+                  ++ [pretty ":", ty2doc (getLast ty')]
+                  ++ [opColor (pretty "=") ])
+                   <+> nest 2 (t2doc False def))
 
+ppTypeSyn :: MonadFD4 m => SDecl -> m String
+ppTypeSyn (TypeDecl pos s st) = return $ render $ sep [defColor (pretty "type"), name2doc s, opColor (pretty "="), ty2doc st]
+ppTypeSyn (LetDecl pos b x0 st) = failPosFD4 pos "Se llamó a ppTypeSyn con una LetDecl"

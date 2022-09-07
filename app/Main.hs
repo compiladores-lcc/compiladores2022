@@ -32,7 +32,7 @@ import Lang
 import Parse ( P, tm, program, declOrTm, runP )
 import Elab ( elab, elabTypeWithTag, elabDecl)
 import Eval ( eval )
-import PPrint ( pp , ppTy, ppDecl )
+import PPrint ( pp , ppTy, ppDecl, ppTypeSyn )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
 
@@ -151,9 +151,11 @@ handleDecl d = do
                   addDecl td
                   ppterm <- ppDecl td  --td'
                   printFD4 ppterm
-                TypeDecl pos s st -> do
+                t@(TypeDecl pos s st) -> do
                   st' <- elabTypeWithTag s st
                   addTypeSyn (s, st')
+                  ppterm <- ppTypeSyn t
+                  printFD4 ppterm
               -- opt <- getOpt
               -- td' <- if opt then optimize td else td
 

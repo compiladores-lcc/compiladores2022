@@ -10,7 +10,7 @@ Este módulo permite elaborar términos y declaraciones para convertirlas desde
 fully named (@STerm) a locally closed (@Term@)
 -}
 
-module Elab (elab, elabDecl, elabTypeWithTag, deElab) where
+module Elab (elab, elabDecl, elabTypeWithTag, deElabType, deElabDecl) where
 
 import Lang
 import Subst
@@ -84,8 +84,13 @@ elabDecl (LetDecl pos False ((f, t):args) def) = Decl pos f <$> elabType (foldr1
 elabDecl (LetDecl pos True ((f, t):args) def) = Decl pos f <$> elabType (foldr1 (FunSTy pos) (t:map snd args)) <*> elab (SFix pos (f, foldr1 (FunSTy pos) (t:map snd args)) args def)
 elabDecl (TypeDecl pos s _) = failPosFD4 pos ("Se intentó elaborar una declaración de sinónimo de tipo: " ++ s)
 
-deElab :: Ty -> SType
-deElab (NatTy Nothing) = NatSTy NoPos
-deElab (NatTy (Just n)) = SynSTy NoPos n
-deElab (FunTy Nothing ty ty') = FunSTy NoPos (deElab ty) (deElab ty')
-deElab (FunTy (Just n) _ _) = SynSTy NoPos n
+deElabDecl :: Decl STerm -> SDecl
+deElabDecl (Decl pos name ty (SLam _ args body)) = LetDecl pos False ((name, deElabType ty):args) body
+deElabDecl (Decl pos name ty (SFix _ (f, fty) args body)) = LetDecl pos True ((f, deElabType ty):args) body
+deElabDecl (Decl pos name ty def) = LetDecl pos False [(name, deElabType ty)] def
+
+deElabType :: Ty -> SType
+deElabType (NatTy Nothing) = NatSTy NoPos
+deElabType (NatTy (Just n)) = SynSTy NoPos n
+deElabType (FunTy Nothing ty ty') = FunSTy NoPos (deElabType ty) (deElabType ty')
+deElabType (FunTy (Just n) _ _) = SynSTy NoPos n
