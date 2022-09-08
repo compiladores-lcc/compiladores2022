@@ -1,12 +1,41 @@
 type Jorge = Nat -> Nat -> Nat
-let f : Jorge = fix (f : Jorge) (n : Nat) (m : Nat) -> ifz n then m else (ifz m then n else (ifz (n - m) then (f (m - n) n) else (f m (n - m))))
+let gggg : Jorge = fix (f : Jorge) (n : Nat) (m : Nat) -> ifz n then m else (ifz m then n else (ifz (n - m) then (f (m - n) n) else (f m (n - m))))
 
-let printGeorge : Nat -> Nat = print
+let mini : (Nat -> Nat) -> Nat = fun (f: Nat -> Nat) -> (fix (mini : Nat -> Nat) (n : Nat) -> ifz (f n) then n else mini (n + 1)) 0
+
+let printGeorge : Nat -> Nat = fun (x:Nat) -> print x
+
+let f (x:Nat) : Nat -> Nat = fun (y:Nat) -> x+y
+
+let fifi (x:Nat) : Nat -> Nat = let g:Nat -> Nat = fun (y:Nat) -> x+y in g
+
+let suma (x : Nat) (y : Nat) : Nat = x + y
+
+let rec sumaR (x : Nat) (y : Nat) : Nat = x + y
+
+let rec sumaR2 (x : Nat) (y : Nat) : Nat =
+    ifz x then y else sumaR2 (x-1) (y+1)
+
+type FNat = Nat -> Nat
+# Esto resugarea bien?
+let suma_x (x:Nat) : Nat -> FNat =
+  let g (y z:Nat) : Nat = x + y in
+  g
+
+
+# Y esto?
+let fsuma_x (x:Nat) : Nat -> Nat -> FNat =
+  fun (y z p:Nat) -> x+y
+
+let pito (x y z : Nat) (a b c : Nat -> Nat) : Nat = x+y+z
+
 
 {-
 lasdjflasdljfajlsdf
-let mini = fun (f: Nat -> Nat) -> (fix (mini : Nat -> Nat) (n : Nat) -> ifz (f n) then n else mini (n + 1)) 0
 ';'';;;;';p[p09876543wsdfghj,./xcvbzxcbz]cvb
 z;xvbzzxvc
 ;lf33--|¿>
+
+(FunSTy pos (NatSTy pos) (FunSTy pos (NatSTy pos) (NatSTy pos)))
+
 -}

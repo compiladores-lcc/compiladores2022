@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use <$>" #-}
+{-# LANGUAGE TupleSections #-}
 {-|
 Module      : Parse
 Description : Define un parser de términos FD40 a términos fully named.
@@ -22,6 +23,7 @@ import Text.ParserCombinators.Parsec.Language --( GenLanguageDef(..), emptyDef )
 import qualified Text.Parsec.Expr as Ex
 import Text.Parsec.Expr (Operator, Assoc)
 import Control.Monad.Identity (Identity)
+import Control.Monad (join)
 
 type P = Parsec String ()
 
@@ -131,13 +133,18 @@ binding = do v <- var
              ty <- typeP
              return (v, ty)
 
+multiBinding :: P [(Name, SType)]
+multiBinding = do args <- many1 var 
+                  t <- reservedOp ":" >> typeP
+                  return (map (, t) args)
+
 lam :: P STerm
 lam = do i <- getPos
          reserved "fun"
-         args <- many1 $ parens binding
+         args <- many1 $ parens multiBinding
          reservedOp "->"
          t <- expr
-         return (SLam i args t)
+         return (SLam i (join args) t)
 
 -- Nota el parser app también parsea un solo atom.
 app :: P STerm
@@ -160,18 +167,18 @@ fix :: P STerm
 fix = do i <- getPos
          reserved "fix"
          (f, fty) <- parens binding
-         args <- many1 $ parens binding
+         args <- many1 $ parens multiBinding
          reservedOp "->"
          t <- expr
-         return (SFix i (f,fty) args t)
+         return (SFix i (f,fty) (join args) t)
 
 binders :: P [(Name, SType)]
 binders = parens binders' <|> binders' where
   binders' = do
     f <- var
-    args <- many $ parens binding
+    args <- many $ parens multiBinding
     t <- reservedOp ":" >> typeP
-    return ((f,t):args)
+    return ((f,t):join args)
 
 letexp :: P STerm
 letexp = do

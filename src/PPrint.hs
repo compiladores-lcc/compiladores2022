@@ -39,6 +39,8 @@ import MonadFD4 ( gets, MonadFD4, failPosFD4 )
 import Global ( GlEnv(glb) )
 import Common (Pos)
 import Data.List (delete)
+import Data.List (groupBy)
+import Data.Function (on)
 
 freshen :: [Name] -> Name -> Name
 freshen ns n = let cands = n : map (\i -> n ++ show i) [0..]
@@ -158,7 +160,7 @@ t2doc at (SConst _ c) = c2doc c
 t2doc at (SLam _ args t) =
   parenIf at $
   sep [sep ([ keywordColor (pretty "fun")]
-           ++ map binding2doc args
+           ++ [multibindings2doc args]
            ++ [opColor(pretty "->")])
       , nest 2 (t2doc False t)]
 
@@ -171,7 +173,7 @@ t2doc at (SFix _ (f,fty) args m) =
   parenIf at $
   sep [ sep ([keywordColor (pretty "fix")
                   , binding2doc (f, fty)]
-                  ++ map binding2doc args
+                  ++ [multibindings2doc args]
                   ++ [opColor (pretty "->") ])
       , nest 2 (t2doc False m)
       ]
@@ -203,24 +205,32 @@ t2doc at (SLet _ isR ((n, ty):args) t t') =
     sep ([keywordColor (pretty "let")]
        ++ [keywordColor (pretty "rec") | isR]
        ++ [name2doc n]
-       ++ map binding2doc args
-       ++ [pretty ":", ty2doc (getLast ty)]
+       ++ [multibindings2doc args]
+       ++ [pretty ":", ty2doc $ getLastS ty (length args)]
        ++ [opColor (pretty "=") ])
   , nest 2 (t2doc False t)
   , keywordColor (pretty "in")
   , nest 2 (t2doc False t') ]
-
+  where getLastS :: SType -> Int -> SType
+        getLastS a 0 = a
+        getLastS (FunSTy pos st st') r = getLastS st' (r-1)
+        getLastS _ _ = error "Estoy sacando mas que los que tengo"
 t2doc at (SBinaryOp _ o a b) =
   parenIf at $
   t2doc True a <+> binary2doc o <+> t2doc True b
 
-getLast :: SType -> SType
-getLast (FunSTy pos st' st2) = getLast st2
-getLast a = a
+getLast :: Ty -> Int -> Ty
+getLast a 0 = a
+getLast (FunTy _ _ t) n = getLast t (n-1)
+getLast _ _ = error "Estoy sacando mas de los que tengo"
 
 binding2doc :: (Name, SType) -> Doc AnsiStyle
 binding2doc (x, ty) =
   parens (sep [name2doc x, pretty ":", ty2doc ty])
+
+multibindings2doc :: [(Name, SType)] -> Doc AnsiStyle
+multibindings2doc args = let grupitos = map (\((x, t):xs) -> (name2doc x:map (name2doc . fst) xs,t)) $ groupBy ((==) `on` snd) args
+                         in sep (map (\g -> parens (sep (fst g ++ [pretty ":", ty2doc $ snd g]))) grupitos)
 
 -- | Pretty printing de términos (String)
 pp :: MonadFD4 m => TTerm -> m String
@@ -237,12 +247,12 @@ render = unpack . renderStrict . layoutSmart defaultLayoutOptions
 ppDecl :: MonadFD4 m => Decl TTerm -> m String
 ppDecl (Decl p x ty t) = do
   gdecl <- gets glb
-  let (LetDecl p' isR ((x', ty'):args) def) = deElabDecl $ Decl p x ty (resugar $ openAll fst (delete x $ map declName gdecl) t)
+  let (LetDecl p' isR ((x', ty'):args) def) = deElabDecl $ Decl p x ty (resugar $ openAll fst (delete x $ map declName gdecl) t) -- No tomamos como declarada a la misma decl que estamos printeando
   return (render $ sep ([defColor (pretty "let")]
                   ++ [defColor (pretty "rec") | isR]
                   ++ [name2doc x']
-                  ++ map binding2doc args
-                  ++ [pretty ":", ty2doc (getLast ty')]
+                  ++ [multibindings2doc args]
+                  ++ [pretty ":", ty2doc $ deElabType $ if null args then ty else getLast ty (length args)]
                   ++ [opColor (pretty "=") ])
                    <+> nest 2 (t2doc False def))
 

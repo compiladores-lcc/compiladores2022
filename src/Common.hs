@@ -18,6 +18,7 @@ type Column = Int
 
 data Pos = NoPos             -- ^ No hay info de posición
          | Pos !Line !Column -- ^ Posición en un archivo.
+         deriving Eq
 
 instance Semigroup Pos where
   i <> NoPos = i
