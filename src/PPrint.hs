@@ -14,12 +14,13 @@ module PPrint (
     pp,
     ppTy,
     ppName,
-    ppDecl
+    ppDecl,
+    ppTypeSyn
     ) where
 
 import Lang
 import Subst ( open, open2 )
-import Common ( Pos )
+import Elab (deElabType, deElabDecl)
 
 import Data.Text ( unpack )
 import Prettyprinter.Render.Terminal
@@ -34,11 +35,15 @@ import Prettyprinter
       parens,
       Doc,
       Pretty(pretty) )
-import MonadFD4 ( gets, MonadFD4 )
+import MonadFD4 ( gets, MonadFD4, failPosFD4 )
 import Global ( GlEnv(glb) )
+import Common (Pos)
+import Data.List (delete)
+import Data.List (groupBy)
+import Data.Function (on)
 
 freshen :: [Name] -> Name -> Name
-freshen ns n = let cands = n : map (\i -> n ++ show i) [0..] 
+freshen ns n = let cands = n : map (\i -> n ++ show i) [0..]
                in head (filter (`notElem` ns) cands)
 
 -- | 'openAll' convierte términos locally nameless
@@ -46,27 +51,50 @@ freshen ns n = let cands = n : map (\i -> n ++ show i) [0..]
 -- Debe tener cuidado de no abrir términos con nombres que ya fueron abiertos.
 -- Estos nombres se encuentran en la lista ns (primer argumento).
 openAll :: (i -> Pos) -> [Name] -> Tm i Var -> STerm
-openAll gp ns (V p v) = case v of 
+openAll gp ns (V p v) = case v of
       Bound i ->  SV (gp p) $ "(Bound "++show i++")" --este caso no debería aparecer
                                                --si el término es localmente cerrado
       Free x -> SV (gp p) x
       Global x -> SV (gp p) x
 openAll gp ns (Const p c) = SConst (gp p) c
-openAll gp ns (Lam p x ty t) = 
-  let x' = freshen ns x 
-  in SLam (gp p) (x',ty) (openAll gp (x':ns) (open x' t))
+openAll gp ns (Lam p x ty t) =
+  let x' = freshen ns x
+  in SLam (gp p) [(x', deElabType ty)] (openAll gp (x':ns) (open x' t))
 openAll gp ns (App p t u) = SApp (gp p) (openAll gp ns t) (openAll gp ns u)
-openAll gp ns (Fix p f fty x xty t) = 
-  let 
+openAll gp ns (Fix p f fty x xty t) =
+  let
     x' = freshen ns x
     f' = freshen (x':ns) f
-  in SFix (gp p) (f',fty) (x',xty) (openAll gp (x:f:ns) (open2 f' x' t))
+  in SFix (gp p) (f', deElabType fty) [(x', deElabType xty)] (openAll gp (x:f:ns) (open2 f' x' t))
 openAll gp ns (IfZ p c t e) = SIfZ (gp p) (openAll gp ns c) (openAll gp ns t) (openAll gp ns e)
-openAll gp ns (Print p str t) = SPrint (gp p) str (openAll gp ns t)
+openAll gp ns (Print p str t) = SPrint (gp p) str (Just $ openAll gp ns t)
 openAll gp ns (BinaryOp p op t u) = SBinaryOp (gp p) op (openAll gp ns t) (openAll gp ns u)
-openAll gp ns (Let p v ty m n) = 
-    let v'= freshen ns v 
-    in  SLet (gp p) (v',ty) (openAll gp ns m) (openAll gp (v':ns) (open v' n))
+openAll gp ns (Let p v ty m n) =
+    let v'= freshen ns v
+    in  SLet (gp p) False [(v',deElabType ty)] (openAll gp ns m) (openAll gp (v':ns) (open v' n))
+
+resugar :: STerm -> STerm
+-- Lambda de lambda (varios args)
+resugar (SLam pos args (SLam _ moreArgs b)) = resugar $ SLam pos (args ++ moreArgs) b
+-- Fix de lambda (varios args)
+resugar (SFix pos f args (SLam _ moreArgs b)) = resugar $ SFix pos f (args ++ moreArgs) b
+-- Let de lambda (convertir a let piola)
+resugar (SLet pos isR binders (SLam _ moreBinders b) body) = resugar $ SLet pos isR (binders ++ moreBinders) b body
+-- Let de fix (convertir a let piola) (es importante que solo lo haga cuando el fix es el primer argumento (o sea cuando en la lista de binders solo hay una cosa))
+resugar (SLet pos _ [binder] (SFix _ f moreBinders b) body) = resugar $ SLet pos True (binder:moreBinders) b body
+-- Lambda de print aplicado a la variable de ese lambda (convertir a print parcial)
+resugar t@(SLam _ args (SPrint pos s (Just (SV _ x)))) = if (fst . last) args == x then SPrint pos s Nothing else t
+-- Casos normales
+resugar (SV pos n) = SV pos n
+resugar (SConst pos c) = SConst pos c
+resugar (SLam pos args body) = SLam pos args (resugar body)
+resugar (SApp pos t t') = SApp pos (resugar t) (resugar t')
+resugar (SPrint pos s Nothing) = SPrint pos s Nothing
+resugar (SPrint pos s (Just e)) = SPrint pos s (Just $ resugar e)
+resugar (SBinaryOp pos bo t t') = SBinaryOp pos bo (resugar t) (resugar t')
+resugar (SFix pos f args t) = SFix pos f args (resugar t)
+resugar (SIfZ pos cond thenSt elseSt) = SIfZ pos (resugar cond) (resugar thenSt) (resugar elseSt)
+resugar (SLet pos name binders def body) = SLet pos name binders (resugar def) (resugar body)
 
 --Colores
 constColor :: Doc AnsiStyle -> Doc AnsiStyle
@@ -93,14 +121,15 @@ ppName :: Name -> String
 ppName = id
 
 -- | Pretty printer para tipos (Doc)
-ty2doc :: Ty -> Doc AnsiStyle
-ty2doc NatTy     = typeColor (pretty "Nat")
-ty2doc (FunTy x@(FunTy _ _) y) = sep [parens (ty2doc x), typeOpColor (pretty "->"),ty2doc y]
-ty2doc (FunTy x y) = sep [ty2doc x, typeOpColor (pretty "->"),ty2doc y] 
+ty2doc :: SType -> Doc AnsiStyle
+ty2doc (NatSTy _)    = typeColor (pretty "Nat")
+ty2doc (FunSTy _ x@(FunSTy _ _ _) y) = sep [parens (ty2doc x), typeOpColor (pretty "->"),ty2doc y]
+ty2doc (FunSTy _ x y) = sep [ty2doc x, typeOpColor (pretty "->"),ty2doc y]
+ty2doc (SynSTy _ n) = typeColor (pretty n)
 
 -- | Pretty printer para tipos (String)
 ppTy :: Ty -> String
-ppTy = render . ty2doc
+ppTy = render . ty2doc . deElabType
 
 c2doc :: Const -> Doc AnsiStyle
 c2doc (CNat n) = constColor (pretty (show n))
@@ -128,11 +157,11 @@ t2doc :: Bool     -- Debe ser un átomo?
 {- t2doc at x = text (show x) -}
 t2doc at (SV _ x) = name2doc x
 t2doc at (SConst _ c) = c2doc c
-t2doc at (SLam _ (v,ty) t) =
+t2doc at (SLam _ args t) =
   parenIf at $
-  sep [sep [ keywordColor (pretty "fun")
-           , binding2doc (v,ty)
-           , opColor(pretty "->")]
+  sep [sep ([ keywordColor (pretty "fun")]
+           ++ [multibindings2doc args]
+           ++ [opColor(pretty "->")])
       , nest 2 (t2doc False t)]
 
 t2doc at t@(SApp _ _ _) =
@@ -140,12 +169,12 @@ t2doc at t@(SApp _ _ _) =
   parenIf at $
   t2doc True h <+> sep (map (t2doc True) ts)
 
-t2doc at (SFix _ (f,fty) (x,xty) m) =
+t2doc at (SFix _ (f,fty) args m) =
   parenIf at $
-  sep [ sep [keywordColor (pretty "fix")
-                  , binding2doc (f, fty)
-                  , binding2doc (x, xty)
-                  , opColor (pretty "->") ]
+  sep [ sep ([keywordColor (pretty "fix")
+                  , binding2doc (f, fty)]
+                  ++ [multibindings2doc args]
+                  ++ [opColor (pretty "->") ])
       , nest 2 (t2doc False m)
       ]
 t2doc at (SIfZ _ c t e) =
@@ -154,27 +183,54 @@ t2doc at (SIfZ _ c t e) =
      , keywordColor (pretty "then"), nest 2 (t2doc False t)
      , keywordColor (pretty "else"), nest 2 (t2doc False e) ]
 
-t2doc at (SPrint _ str t) =
+t2doc at (SPrint _ str Nothing) =
   parenIf at $
-  sep [keywordColor (pretty "print"), pretty (show str), t2doc True t]
+  sep (keywordColor (pretty "print") : [pretty (show str) | str /= ""])
+t2doc at (SPrint _ str (Just t)) =
+  parenIf at $
+  sep ([keywordColor (pretty "print")] ++ [pretty (show str) | str /= ""] ++ [t2doc True t])
 
-t2doc at (SLet _ (v,ty) t t') =
+t2doc at (SLet _ isR [] t t') =
   parenIf at $
   sep [
-    sep [keywordColor (pretty "let")
-       , binding2doc (v,ty)
-       , opColor (pretty "=") ]
+    sep ([keywordColor (pretty "let")]
+       ++ [keywordColor (pretty "rec") | isR]
+       ++ [opColor (pretty "=") ])
   , nest 2 (t2doc False t)
   , keywordColor (pretty "in")
   , nest 2 (t2doc False t') ]
-
+t2doc at (SLet _ isR ((n, ty):args) t t') =
+  parenIf at $
+  sep [
+    sep ([keywordColor (pretty "let")]
+       ++ [keywordColor (pretty "rec") | isR]
+       ++ [name2doc n]
+       ++ [multibindings2doc args]
+       ++ [pretty ":", ty2doc $ getLastS ty (length args)]
+       ++ [opColor (pretty "=") ])
+  , nest 2 (t2doc False t)
+  , keywordColor (pretty "in")
+  , nest 2 (t2doc False t') ]
+  where getLastS :: SType -> Int -> SType
+        getLastS a 0 = a
+        getLastS (FunSTy pos st st') r = getLastS st' (r-1)
+        getLastS _ _ = error "Estoy sacando mas que los que tengo"
 t2doc at (SBinaryOp _ o a b) =
   parenIf at $
   t2doc True a <+> binary2doc o <+> t2doc True b
 
-binding2doc :: (Name, Ty) -> Doc AnsiStyle
+getLast :: Ty -> Int -> Ty
+getLast a 0 = a
+getLast (FunTy _ _ t) n = getLast t (n-1)
+getLast _ _ = error "Estoy sacando mas de los que tengo"
+
+binding2doc :: (Name, SType) -> Doc AnsiStyle
 binding2doc (x, ty) =
   parens (sep [name2doc x, pretty ":", ty2doc ty])
+
+multibindings2doc :: [(Name, SType)] -> Doc AnsiStyle
+multibindings2doc args = let grupitos = map (\((x, t):xs) -> (name2doc x:map (name2doc . fst) xs,t)) $ groupBy ((==) `on` snd) args
+                         in sep (map (\g -> parens (sep (fst g ++ [pretty ":", ty2doc $ snd g]))) grupitos)
 
 -- | Pretty printing de términos (String)
 pp :: MonadFD4 m => TTerm -> m String
@@ -182,18 +238,24 @@ pp :: MonadFD4 m => TTerm -> m String
 {- pp = show -}
 pp t = do
        gdecl <- gets glb
-       return (render . t2doc False $ openAll fst (map declName gdecl) t)
+       return (render . t2doc False $ resugar $ openAll fst (map declName gdecl) t)
 
 render :: Doc AnsiStyle -> String
 render = unpack . renderStrict . layoutSmart defaultLayoutOptions
 
 -- | Pretty printing de declaraciones
 ppDecl :: MonadFD4 m => Decl TTerm -> m String
-ppDecl (Decl p x t) = do 
+ppDecl (Decl p x ty t) = do
   gdecl <- gets glb
-  return (render $ sep [defColor (pretty "let")
-                       , name2doc x 
-                       , defColor (pretty "=")] 
-                   <+> nest 2 (t2doc False (openAll fst (map declName gdecl) t)))
-                         
+  let (LetDecl p' isR ((x', ty'):args) def) = deElabDecl $ Decl p x ty (resugar $ openAll fst (delete x $ map declName gdecl) t) -- No tomamos como declarada a la misma decl que estamos printeando
+  return (render $ sep ([defColor (pretty "let")]
+                  ++ [defColor (pretty "rec") | isR]
+                  ++ [name2doc x']
+                  ++ [multibindings2doc args]
+                  ++ [pretty ":", ty2doc $ deElabType $ if null args then ty else getLast ty (length args)]
+                  ++ [opColor (pretty "=") ])
+                   <+> nest 2 (t2doc False def))
 
+ppTypeSyn :: MonadFD4 m => SDecl -> m String
+ppTypeSyn (TypeDecl pos s st) = return $ render $ sep [defColor (pretty "type"), name2doc s, opColor (pretty "="), ty2doc st]
+ppTypeSyn (LetDecl pos b x0 st) = failPosFD4 pos "Se llamó a ppTypeSyn con una LetDecl"

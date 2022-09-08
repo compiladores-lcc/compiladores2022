@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use <$>" #-}
+{-# LANGUAGE TupleSections #-}
 {-|
 Module      : Parse
 Description : Define un parser de términos FD40 a términos fully named.
@@ -22,6 +23,7 @@ import Text.ParserCombinators.Parsec.Language --( GenLanguageDef(..), emptyDef )
 import qualified Text.Parsec.Expr as Ex
 import Text.Parsec.Expr (Operator, Assoc)
 import Control.Monad.Identity (Identity)
+import Control.Monad (join)
 
 type P = Parsec String ()
 
@@ -37,13 +39,15 @@ langDef = emptyDef {
          commentLine    = "#",
          reservedNames = ["let", "rec","fun", "fix", "then", "else","in",
                            "ifz", "print","Nat","type"],
-         reservedOpNames = ["->",":","=","+","-"]
+         reservedOpNames = ["->",":","=","+","-"],
+         commentStart = "{-",
+         commentEnd = "-}"
         }
 
 whiteSpace :: P ()
 whiteSpace = Tok.whiteSpace lexer
 
-natural :: P Integer 
+natural :: P Integer
 natural = Tok.natural lexer
 
 stringLiteral :: P String
@@ -81,18 +85,20 @@ getPos :: P Pos
 getPos = do pos <- getPosition
             return $ Pos (sourceLine pos) (sourceColumn pos)
 
-tyatom :: P Ty
-tyatom = (reserved "Nat" >> return NatTy)
+tyatom :: P SType
+tyatom = (reserved "Nat" >> NatSTy <$> getPos)
+         <|> (SynSTy <$> getPos <*> var)
          <|> parens typeP
 
-typeP :: P Ty
-typeP = try (do 
+typeP :: P SType
+typeP = try (do
+          i <- getPos
           x <- tyatom
           reservedOp "->"
           y <- typeP
-          return (FunTy x y))
+          return (FunSTy i x y))
       <|> tyatom
-          
+
 const :: P Const
 const = CNat <$> num
 
@@ -101,7 +107,7 @@ printOp = do
   i <- getPos
   reserved "print"
   str <- option "" stringLiteral
-  a <- atom
+  a <- optionMaybe atom
   return (SPrint i str a)
 
 binary :: String -> BinaryOp -> Assoc -> Operator String () Identity STerm
@@ -121,19 +127,24 @@ atom =     (flip SConst <$> const <*> getPos)
        <|> printOp
 
 -- parsea un par (variable : tipo)
-binding :: P (Name, Ty)
+binding :: P (Name, SType)
 binding = do v <- var
              reservedOp ":"
              ty <- typeP
              return (v, ty)
 
+multiBinding :: P [(Name, SType)]
+multiBinding = do args <- many1 var 
+                  t <- reservedOp ":" >> typeP
+                  return (map (, t) args)
+
 lam :: P STerm
 lam = do i <- getPos
          reserved "fun"
-         (v,ty) <- parens binding
+         args <- many1 $ parens multiBinding
          reservedOp "->"
          t <- expr
-         return (SLam i (v,ty) t)
+         return (SLam i (join args) t)
 
 -- Nota el parser app también parsea un solo atom.
 app :: P STerm
@@ -156,43 +167,66 @@ fix :: P STerm
 fix = do i <- getPos
          reserved "fix"
          (f, fty) <- parens binding
-         (x, xty) <- parens binding
+         args <- many1 $ parens multiBinding
          reservedOp "->"
          t <- expr
-         return (SFix i (f,fty) (x,xty) t)
+         return (SFix i (f,fty) (join args) t)
+
+binders :: P [(Name, SType)]
+binders = parens binders' <|> binders' where
+  binders' = do
+    f <- var
+    args <- many $ parens multiBinding
+    t <- reservedOp ":" >> typeP
+    return ((f,t):join args)
 
 letexp :: P STerm
 letexp = do
   i <- getPos
   reserved "let"
-  (v,ty) <- parens binding
+  isR <- (reserved "rec" >> return True) <|> return False
+  bindings <- binders
   reservedOp "="  
   def <- expr
   reserved "in"
   body <- expr
-  return (SLet i (v,ty) def body)
+  return (SLet i isR bindings def body)
 
 -- | Parser de términos
 tm :: P STerm
 tm = app <|> lam <|> ifz <|> printOp <|> fix <|> letexp
 
 -- | Parser de declaraciones
-decl :: P (Decl STerm)
-decl = do 
+decl :: P SDecl
+decl = letDecl <|> typeSyn
+
+typeSyn :: P SDecl
+typeSyn = do
+  i <- getPos
+  reserved "type"
+  t <- tyIdentifier
+  reservedOp "="
+  def <- typeP
+  return $ TypeDecl i t def
+
+letDecl :: P SDecl
+letDecl = do 
      i <- getPos
      reserved "let"
-     v <- var
+     isR <- (reserved "rec" >> return True) <|> return False
+     args <- binders
      reservedOp "="
-     t <- expr
-     return (Decl i v t)
+     def <- expr
+     notFollowedBy (reserved "in")
+     return (LetDecl i isR args def)
 
 -- | Parser de programas (listas de declaraciones) 
-program :: P [Decl STerm]
+program :: P [SDecl]
 program = many decl
 
 -- | Parsea una declaración a un término
 -- Útil para las sesiones interactivas
-declOrTm :: P (Either (Decl STerm) STerm)
+declOrTm :: P (Either SDecl STerm)
 declOrTm =  try (Left <$> decl) <|> (Right <$> expr)
 
 -- Corre un parser, chequeando que se pueda consumir toda la entrada

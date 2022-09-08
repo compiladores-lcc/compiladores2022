@@ -30,9 +30,9 @@ import Global
 import Errors
 import Lang
 import Parse ( P, tm, program, declOrTm, runP )
-import Elab ( elab )
+import Elab ( elab, elabTypeWithTag, elabDecl)
 import Eval ( eval )
-import PPrint ( pp , ppTy, ppDecl )
+import PPrint ( pp , ppTy, ppDecl, ppTypeSyn )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
 
@@ -103,7 +103,7 @@ repl args = do
                        b <- lift $ catchErrors $ handleCommand c
                        maybe loop (`when` loop) b
 
-loadFile ::  MonadFD4 m => FilePath -> m [Decl STerm]
+loadFile ::  MonadFD4 m => FilePath -> m [SDecl]
 loadFile f = do
     let filename = reverse(dropWhile isSpace (reverse f))
     x <- liftIO $ catch (readFile filename)
@@ -127,28 +127,37 @@ parseIO filename p x = case runP p x filename of
                   Left e  -> throwError (ParseErr e)
                   Right r -> return r
 
-handleDecl ::  MonadFD4 m => Decl STerm -> m ()
+handleDecl ::  MonadFD4 m => SDecl -> m ()
 handleDecl d = do
         m <- getMode
         case m of
           Interactive -> do
-              (Decl p x tt) <- typecheckDecl d
-              te <- eval tt
-              addDecl (Decl p x te)
+              case d of
+                LetDecl {} -> do
+                  elabbed <- elabDecl d
+                  (Decl p x ty tt) <- tcDecl elabbed
+                  te <- eval tt
+                  addDecl (Decl p x ty te)
+                TypeDecl pos s st -> do
+                  st' <- elabTypeWithTag s st
+                  addTypeSyn (s, st')
           Typecheck -> do
               f <- getLastFile
               printFD4 ("Chequeando tipos de "++f)
-              td <- typecheckDecl d
-              addDecl td
+              case d of
+                LetDecl {} -> do
+                  elabbed <- elabDecl d
+                  td <- tcDecl elabbed
+                  addDecl td
+                  ppterm <- ppDecl td  --td'
+                  printFD4 ppterm
+                t@(TypeDecl pos s st) -> do
+                  st' <- elabTypeWithTag s st
+                  addTypeSyn (s, st')
+                  ppterm <- ppTypeSyn t
+                  printFD4 ppterm
               -- opt <- getOpt
               -- td' <- if opt then optimize td else td
-              ppterm <- ppDecl td  --td'
-              printFD4 ppterm
-
-      where
-        typecheckDecl :: MonadFD4 m => Decl STerm -> m (Decl TTerm)
-        typecheckDecl (Decl p x t) = tcDecl (Decl p x (elab t))
-
 
 data Command = Compile CompileForm
              | PPrint String
@@ -214,7 +223,11 @@ handleCommand cmd = do
        Quit   ->  return False
        Noop   ->  return True
        Help   ->  printFD4 (helpTxt commands) >> return True
-       Browse ->  do  printFD4 (unlines (reverse (nub (map declName glb))))
+       Browse ->  do
+                      printFD4 "---Declaraciones de términos---"  
+                      printFD4 (unlines (reverse (nub (map declName glb))))
+                      printFD4 "---Sinónimos de tipos---"
+                      printFD4 (unlines (reverse (nub (map fst glbTy))))
                       return True
        Compile c ->
                   do  case c of
@@ -234,7 +247,7 @@ compilePhrase x = do
 
 handleTerm ::  MonadFD4 m => STerm -> m ()
 handleTerm t = do
-         let t' = elab t
+         t' <- elab t
          s <- get
          tt <- tc t' (tyEnv s)
          te <- eval tt
@@ -245,7 +258,7 @@ printPhrase   :: MonadFD4 m => String -> m ()
 printPhrase x =
   do
     x' <- parseIO "<interactive>" tm x
-    let ex = elab x'
+    ex <- elab x'
     tyenv <- gets tyEnv
     tex <- tc ex tyenv
     t  <- case x' of
@@ -259,7 +272,7 @@ printPhrase x =
 typeCheckPhrase :: MonadFD4 m => String -> m ()
 typeCheckPhrase x = do
          t <- parseIO "<interactive>" tm x
-         let t' = elab t
+         t' <- elab t
          s <- get
          tt <- tc t' (tyEnv s)
          let ty = getTy tt

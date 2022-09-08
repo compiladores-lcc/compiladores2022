@@ -27,24 +27,32 @@ import           Data.List.Extra                ( nubSort )
 data STm info ty var =
     SV info var
   | SConst info Const
-  | SLam info (var, ty) (STm info ty var)
+  | SLam info [(var, ty)] (STm info ty var)
   | SApp info (STm info ty var) (STm info ty var)
-  | SPrint info String (STm info ty var)
+  | SPrint info String (Maybe (STm info ty var))
   | SBinaryOp info BinaryOp (STm info ty var) (STm info ty var)
-  | SFix info (var, ty) (var, ty) (STm info ty var)
+  | SFix info (var, ty) [(var, ty)] (STm info ty var)
   | SIfZ info (STm info ty var) (STm info ty var) (STm info ty var)
-  | SLet info (var, ty) (STm info ty var) (STm info ty var)
+  | SLet info Bool [(var, ty)] (STm info ty var) (STm info ty var)
   deriving (Show, Functor)
+
+data STy info =
+    NatSTy info
+  | FunSTy info (STy info) (STy info)
+  | SynSTy info Name
+  deriving (Show, Eq)
 
 -- | AST de Tipos
 data Ty =
-      NatTy
-    | FunTy Ty Ty
+      NatTy (Maybe Name) -- El nombre, si viene de un sinónimo de tipo
+    | FunTy (Maybe Name) Ty Ty -- Lo mismo
     deriving (Show,Eq)
 
 type Name = String
 
-type STerm = STm Pos Ty Name -- ^ 'STm' tiene 'Name's como variables ligadas y libres y globales, guarda posición  
+type SType = STy Pos
+
+type STerm = STm Pos SType Name -- ^ 'STm' tiene 'Name's como variables ligadas y libres y globales, guarda posición  
 
 newtype Const = CNat Int
   deriving Show
@@ -52,10 +60,15 @@ newtype Const = CNat Int
 data BinaryOp = Add | Sub
   deriving Show
 
+data SDecl =
+    LetDecl { sDeclPos :: Pos, isRec :: Bool, sDeclBinders :: [(Name, SType)], sDeclBody :: STerm }
+  | TypeDecl { sDeclPos :: Pos, sDeclName :: Name, sType :: SType }
+
 -- | tipo de datos de declaraciones, parametrizado por el tipo del cuerpo de la declaración
 data Decl a = Decl
   { declPos  :: Pos
   , declName :: Name
+  , declType :: Ty
   , declBody :: a
   }
   deriving (Show, Functor)
@@ -109,6 +122,10 @@ getInfo (Fix i _ _ _ _ _ ) = i
 getInfo (IfZ i _ _ _     ) = i
 getInfo (Let i _ _ _ _   ) = i
 getInfo (BinaryOp i _ _ _) = i
+
+getSyn :: Ty -> Maybe Name
+getSyn (NatTy n) = n
+getSyn (FunTy n _ _) = n
 
 getTy :: TTerm -> Ty
 getTy = snd . getInfo
