@@ -86,7 +86,8 @@ elabDecl (TypeDecl pos s _) = failPosFD4 pos ("Se intentó elaborar una declarac
 
 deElabDecl :: Decl STerm -> SDecl
 deElabDecl (Decl pos name ty (SLam _ args body)) = LetDecl pos False ((name, deElabType ty):args) body
-deElabDecl (Decl pos name ty (SFix _ (f, fty) args body)) = LetDecl pos True ((f, deElabType ty):args) body
+deElabDecl (Decl pos name ty (SFix _ (f, fty) args body))
+  | name == f = LetDecl pos True ((f, deElabType ty):args) body
 deElabDecl (Decl pos name ty def) = LetDecl pos False [(name, deElabType ty)] def
 
 deElabType :: Ty -> SType
