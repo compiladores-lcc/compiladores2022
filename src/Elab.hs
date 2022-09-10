@@ -81,7 +81,7 @@ elabDecl :: MonadFD4 m => SDecl -> m (Decl Term)
 elabDecl (LetDecl pos _ [] _) = failPosFD4 pos "Declaración sin binders"
 elabDecl (LetDecl pos _ [(f, t)] def) = Decl pos f <$> elabType t <*> elab def
 elabDecl (LetDecl pos False ((f, t):args) def) = Decl pos f <$> elabType (foldr1 (FunSTy pos) (map snd args ++ [t])) <*> elab (SLam pos args def)
-elabDecl (LetDecl pos True ((f, t):args) def) = Decl pos f <$> elabType (foldr1 (FunSTy pos) (map snd args ++ [t])) <*> elab (SFix pos (f, foldr1 (FunSTy pos) (t:map snd args)) args def)
+elabDecl (LetDecl pos True ((f, t):args) def) = Decl pos f <$> elabType (foldr1 (FunSTy pos) (map snd args ++ [t])) <*> elab (SFix pos (f, foldr1 (FunSTy pos) (map snd args ++ [t])) args def)
 elabDecl (TypeDecl pos s _) = failPosFD4 pos ("Se intentó elaborar una declaración de sinónimo de tipo: " ++ s)
 
 deElabDecl :: Decl STerm -> SDecl
