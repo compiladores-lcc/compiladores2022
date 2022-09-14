@@ -35,6 +35,7 @@ import Eval ( eval )
 import PPrint ( pp , ppTy, ppDecl, ppTypeSyn )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
+import CEK (search, toTTerm)
 
 prompt :: String
 prompt = "FD4> "
@@ -45,7 +46,7 @@ prompt = "FD4> "
 parseMode :: Parser (Mode,Bool)
 parseMode = (,) <$>
       (flag' Typecheck ( long "typecheck" <> short 't' <> help "Chequear tipos e imprimir el término")
-  -- <|> flag' InteractiveCEK (long "interactiveCEK" <> short 'k' <> help "Ejecutar interactivamente en la CEK")
+      <|> flag' InteractiveCEK (long "interactiveCEK" <> short 'k' <> help "Ejecutar interactivamente en la CEK")
   -- <|> flag' Bytecompile (long "bytecompile" <> short 'm' <> help "Compilar a la BVM")
   -- <|> flag' RunVM (long "runVM" <> short 'r' <> help "Ejecutar bytecode en la BVM")
       <|> flag Interactive Interactive ( long "interactive" <> short 'i' <> help "Ejecutar en forma interactiva")
@@ -71,6 +72,8 @@ main = execParser opts >>= go
      <> header "Compilador de FD4 de la materia Compiladores 2022" )
 
     go :: (Mode,Bool,[FilePath]) -> IO ()
+    go (InteractiveCEK,opt,files) =
+              runOrFail (Conf opt InteractiveCEK) (runInputT defaultSettings (repl files))
     go (Interactive,opt,files) =
               runOrFail (Conf opt Interactive) (runInputT defaultSettings (repl files))
     go (m,opt, files) =
@@ -156,6 +159,16 @@ handleDecl d = do
                   addTypeSyn (s, st')
                   ppterm <- ppTypeSyn t
                   printFD4 ppterm
+          InteractiveCEK -> do
+              case d of
+                LetDecl {} -> do
+                  elabbed <- elabDecl d
+                  (Decl p x ty tt) <- tcDecl elabbed
+                  te <- search tt [] []
+                  addDecl (Decl p x ty (toTTerm te (p, ty)))
+                TypeDecl pos s st -> do
+                  st' <- elabTypeWithTag s st
+                  addTypeSyn (s, st')
               -- opt <- getOpt
               -- td' <- if opt then optimize td else td
 
@@ -247,12 +260,23 @@ compilePhrase x = do
 
 handleTerm ::  MonadFD4 m => STerm -> m ()
 handleTerm t = do
+         printFD4 "Elab"
          t' <- elab t
          s <- get
+         printFD4 "TypeCheck"
          tt <- tc t' (tyEnv s)
-         te <- eval tt
-         ppte <- pp te
-         printFD4 (ppte ++ " : " ++ ppTy (getTy tt))
+         m <- getMode
+         case m of
+           InteractiveCEK -> do
+            printFD4 "Seek and destroy"
+            te <- search tt [] []
+            printFD4 "Pretty printing"
+            ppte <- pp (toTTerm te (getPos tt, getTy tt))
+            printFD4 (ppte ++ " : " ++ ppTy (getTy tt))
+           _ -> do
+            te <- eval tt
+            ppte <- pp te
+            printFD4 (ppte ++ " : " ++ ppTy (getTy tt))
 
 printPhrase   :: MonadFD4 m => String -> m ()
 printPhrase x =
