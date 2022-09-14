@@ -27,8 +27,6 @@ let suma_x (x:Nat) : Nat -> FNat =
 let fsuma_x (x:Nat) : Nat -> Nat -> FNat =
   fun (y z p:Nat) -> x+y
 
-let pito (x y z : Nat) (a b c : Nat -> Nat) : Nat = x+y+z
-
 
 {-
 lasdjflasdljfajlsdf

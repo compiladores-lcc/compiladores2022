@@ -165,7 +165,7 @@ handleDecl d = do
                   elabbed <- elabDecl d
                   (Decl p x ty tt) <- tcDecl elabbed
                   te <- search tt [] []
-                  addDecl (Decl p x ty (toTTerm te (p, ty)))
+                  addDecl (Decl p x ty (toTTerm te))
                 TypeDecl pos s st -> do
                   st' <- elabTypeWithTag s st
                   addTypeSyn (s, st')
@@ -270,8 +270,10 @@ handleTerm t = do
            InteractiveCEK -> do
             printFD4 "Seek and destroy"
             te <- search tt [] []
+            printFD4 "No la estoy pasando bien"
+            printFD4 $ show te
             printFD4 "Pretty printing"
-            ppte <- pp (toTTerm te (getPos tt, getTy tt))
+            ppte <- pp (toTTerm te)
             printFD4 (ppte ++ " : " ++ ppTy (getTy tt))
            _ -> do
             te <- eval tt
