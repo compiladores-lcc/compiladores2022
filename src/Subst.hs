@@ -81,14 +81,13 @@ subst2 n1 n2 (Sc2 m) = varChanger (\_ p n -> V p (Free n)) bnd m
              | i == depth+1 = n1
              | otherwise  = abort "subst2: M is not LC"
 
--- Peligroso (no scope)
+-- Peligroso (no usa scopes)
 --
 -- `substN [t0,..,tn] t` sustituye los índices de de Bruijn en t con
--- los términos de la lista. Bound 0 pasa a t0, etc. Notar el orden
--- inverso para hacer las llamadas más intuitivas.
+-- los términos de la lista. Bound 0 pasa a t0, etc.
 --
--- El término `t` debe tener a lo sumo tantos índices abiertos como la
--- longitud de la lista. Si es localmente cerrado (es decir que no tiene
+-- El término `t` debe tener a lo sumo tantos índices abiertos como
+-- la longitud de la lista. Si es localmente cerrado (i.e. no tiene
 -- índices abiertos), nada va a ser sustituido.
 --
 -- Puede pensarse como una optimizacíon de primero hacer `open
