@@ -260,19 +260,13 @@ compilePhrase x = do
 
 handleTerm ::  MonadFD4 m => STerm -> m ()
 handleTerm t = do
-         printFD4 "Elab"
          t' <- elab t
          s <- get
-         printFD4 "TypeCheck"
          tt <- tc t' (tyEnv s)
          m <- getMode
          case m of
            InteractiveCEK -> do
-            printFD4 "Seek and destroy"
             te <- search tt [] []
-            printFD4 "No la estoy pasando bien"
-            printFD4 $ show te
-            printFD4 "Pretty printing"
             ppte <- pp (toTTerm te)
             printFD4 (ppte ++ " : " ++ ppTy (getTy tt))
            _ -> do
