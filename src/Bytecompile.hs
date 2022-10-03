@@ -80,18 +80,18 @@ showOps [] = []
 showOps (NULL:xs)        = "NULL" : showOps xs
 showOps (RETURN:xs)      = "RETURN" : showOps xs
 showOps (CONST:i:xs)     = ("CONST " ++  show i) : showOps xs
-showOps (ACCESS:i:xs)    = "ACCESS" : show i : showOps xs
-showOps (FUNCTION:i:xs)  = "FUNCTION" : show i : showOps xs
+showOps (ACCESS:i:xs)    = ("ACCESS " ++ show i) : showOps xs
+showOps (FUNCTION:i:xs)  = ("FUNCTION len=" ++ show i) : showOps xs
 showOps (CALL:xs)        = "CALL" : showOps xs
 showOps (ADD:xs)         = "ADD" : showOps xs
 showOps (SUB:xs)         = "SUB" : showOps xs
 showOps (FIX:xs)         = "FIX" : showOps xs
 showOps (STOP:xs)        = "STOP" : showOps xs
-showOps (JUMP:i:xs)      = "JUMP" : show i: showOps xs
+showOps (JUMP:i:xs)      = ("JUMP off=" ++ show i) : showOps xs
 showOps (SHIFT:xs)       = "SHIFT" : showOps xs
 showOps (DROP:xs)        = "DROP" : showOps xs
 showOps (PRINT:xs)       = let (msg,_:rest) = span (/=NULL) xs
-                           in ("PRINT " ++ show (bc2string msg)) : showOps xs
+                           in ("PRINT " ++ show (bc2string msg)) : showOps rest
 showOps (PRINTN:xs)      = "PRINTN" : showOps xs
 showOps (ADD:xs)         = "ADD" : showOps xs
 showOps (x:xs)           = show x : showOps xs
