@@ -30,6 +30,7 @@ tyEnv g = map (\(Decl _ n b) -> (n, getTy b))  (glb g)
 data Mode =
     Interactive
   | Typecheck
+  | Eval
   -- | InteractiveCEK
   -- | Bytecompile
   -- | RunVM
