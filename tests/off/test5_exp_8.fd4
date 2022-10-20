@@ -1,0 +1,9 @@
+type N = Nat
+
+let pred (x : Nat) : Nat = x - 1
+
+let rec mult(x y : N):Nat = ifz y then 0 else x + (mult x (pred y))
+
+let rec exp(x y : N):Nat = ifz y then 1 else mult x (exp x (pred y))
+
+let res:Nat = print (exp 2 3)

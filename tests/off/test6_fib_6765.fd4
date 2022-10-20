@@ -1,0 +1,8 @@
+
+type N = Nat
+
+let pred (x : Nat) : Nat = x - 1
+
+let rec fib(x:N):N = ifz x then 0 else (ifz pred x then 1 else  (fib (pred x)) + (fib (pred (pred x))))  
+
+let res:N = print (fib 20)

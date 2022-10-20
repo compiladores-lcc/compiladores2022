@@ -1,0 +1,6 @@
+let z:Nat = 4
+
+let suma (x y:Nat):Nat = x + y
+let resta (x y:Nat):Nat = x - y
+
+let ans:Nat = print (suma (resta z z) (suma (resta z 3) (suma 1 2)))

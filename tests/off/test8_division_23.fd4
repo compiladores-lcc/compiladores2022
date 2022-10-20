@@ -1,0 +1,8 @@
+
+let eq(x y : Nat) : Nat = 
+    ifz (x-y) + (y-x) then 0 else 1
+
+let rec div(x y:Nat) : Nat = 
+    ifz eq x y then 1 else ifz (x - y) then 0 else 1 + (div (x-y) y)
+
+let dans:Nat = print (div 234 10)

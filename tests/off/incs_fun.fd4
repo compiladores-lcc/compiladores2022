@@ -1,0 +1,15 @@
+let inc10 (x:Nat) : Nat =
+  let inc (x:Nat) : Nat = x+1 in
+  let x:Nat = inc x in
+  let x:Nat = inc x in
+  let x:Nat = inc x in
+  let x:Nat = inc x in
+  let x:Nat = inc x in
+  let x:Nat = inc x in
+  let x:Nat = inc x in
+  let x:Nat = inc x in
+  let x:Nat = inc x in
+  let x:Nat = inc x in
+  x
+
+let _ : Nat = print "res = " (inc10 100)

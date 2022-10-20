@@ -1,0 +1,8 @@
+type N = Nat
+
+let rec gcd(n m : N):Nat =  ifz n then m else 
+                            ifz m then n else 
+                            ifz (n - m) then gcd (m - n) n else gcd m (n - m)
+
+let res1 : Nat = print (gcd 12 1234)
+let res2 : Nat = print (gcd 17 51)

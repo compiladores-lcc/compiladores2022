@@ -1,0 +1,11 @@
+# listas con numeros del 1 al 9 (base-10)
+# Al ser una representación de solo dígitos es fácil ver la 
+# lista resultante en el numero final.
+
+let eq(x y : Nat) : Nat = 
+    ifz (x-y) + (y-x) then 0 else 1 
+
+let rec mod(x y:Nat) : Nat = 
+    ifz eq x y then 0 else ifz (x - y) then x else mod (x-y) y
+
+let mans:Nat = print (mod 5234 10)

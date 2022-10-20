@@ -1,0 +1,34 @@
+let pred (x : Nat) : Nat = x - 1
+let succ (x : Nat) : Nat = x + 1
+
+let rec suma (x y : Nat) : Nat =
+    ifz y 
+        then x
+        else suma (succ x) (pred y)
+
+let rec fib (x:Nat) : Nat = 
+    ifz x 
+        then 1 
+        else (ifz pred x then 1 else suma (fib (pred x)) (fib (pred (pred x))))  
+
+let rec resta (x y : Nat) : Nat =
+    ifz y 
+        then x
+        else resta (pred x) (pred y)
+
+let rec mult (x y : Nat) : Nat =
+    ifz y 
+        then 0 
+        else suma x (mult x (pred y))
+
+let rec exp (x y : Nat) : Nat =
+    ifz y 
+        then 1 
+        else mult x (exp x (pred y))
+
+let rec fact (x:Nat) : Nat =
+    ifz x 
+        then 1
+        else mult x (fact (pred x))
+
+let res : Nat = print (fib (resta (mult (fact 4) (exp 2 3)) 187))

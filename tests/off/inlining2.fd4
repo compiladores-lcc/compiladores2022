@@ -1,0 +1,2 @@
+let test = fun (x:Nat) ->
+  1 + (fun (y:Nat) -> fun (z:Nat) -> y-z) 3 2

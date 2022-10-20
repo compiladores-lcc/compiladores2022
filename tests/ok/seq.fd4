@@ -1,0 +1,14 @@
+let f = fun (n:Nat) ->
+  let (w:Nat) = 10 in
+  let (x:Nat) = 20 in
+  let (a:Nat) = print "hola" 1 in
+  let (z:Nat) = x+1 in
+  let (b:Nat) = print "hola" 1 in
+  let (c:Nat) = print "hola" 1 in
+  let (d:Nat) = print "hola" 1 in
+  let (e:Nat) = print "hola" 1 in
+  let (f:Nat) = print "hola" 1 in
+  let (g:Nat) = print "hola" 1 in
+  z
+
+let x = print "res = " (f 100)

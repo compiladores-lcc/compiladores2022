@@ -1,0 +1,17 @@
+let suma (x : Nat) (y : Nat) : Nat = x + y
+
+let rec sumaR (x : Nat) (y : Nat) : Nat = x + y
+
+let rec sumaR2 (x : Nat) (y : Nat) : Nat =
+    ifz x then y else sumaR2 (x-1) (y+1)
+
+# Esto resugarea bien?
+let suma_x (x:Nat) : Nat -> Nat =
+  let g (y:Nat) : Nat = x + y in
+  g
+
+type FNat = Nat -> Nat
+
+# Y esto?
+let fsuma_x (x:Nat) : FNat =
+  fun (y:Nat) -> x+y

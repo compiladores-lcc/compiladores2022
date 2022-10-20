@@ -1,0 +1,29 @@
+let f (x:Nat) : Nat =
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in let x : Nat = x in
+    x
+
+let rec loop (n:Nat) : Nat =
+    let _:Nat = print "vuelta " n in
+     ifz n then 0 else f (loop (n-1))
+
+let main : Nat = print "" (loop 100)

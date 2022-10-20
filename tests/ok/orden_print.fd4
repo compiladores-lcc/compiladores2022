@@ -1,0 +1,11 @@
+let orden_de_impresion = print "uno! " (print "dos! " 3)
+
+let f = fun (x:Nat) ->
+	ifz x
+	then print "uno! " 1
+	else print "dos! " 2
+
+let test =
+	let (a : Nat) = f 0 in
+	let (b : Nat) = f 1 in
+	0

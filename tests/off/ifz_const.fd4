@@ -1,0 +1,5 @@
+let uno : Nat = ifz 0 then 1 else 2
+let dos : Nat = ifz 1 then 1 else 2
+
+let _ : Nat = print "uno=" uno
+let _ : Nat = print "dos=" dos

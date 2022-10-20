@@ -1,0 +1,20 @@
+let pred (x : Nat) : Nat = x - 1
+
+let rec mult (m n : Nat) : Nat = ifz m then 0 
+    else ifz n then 0   
+        else ifz (pred n) then m else m + (mult m (pred n))
+
+
+let b : Nat = 8+2
+
+let d : Nat = 0
+
+let e : Nat = 0
+
+let c : Nat = ifz 0 then 5 else 3
+
+let g (k l m: Nat) : Nat = (k+2) + l + (m+3) + b + (mult 4 5)
+
+let f (x y: Nat) : Nat = g (x+1) y (ifz 0 then 5 else 3)
+
+let a:Nat = print (f 3 4)

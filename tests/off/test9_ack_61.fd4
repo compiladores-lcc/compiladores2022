@@ -1,0 +1,9 @@
+let pred (x : Nat) : Nat = x - 1
+let succ (x : Nat) : Nat = x + 1
+
+let rec ack (m n : Nat) : Nat =
+    ifz m then succ n
+        else ifz n then ack (pred m) 1
+            else ack (pred m) (ack m (pred n))
+
+let ret : Nat = print (ack 3 3)

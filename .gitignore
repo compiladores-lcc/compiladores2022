@@ -12,8 +12,6 @@ stack.yaml.lock
 *.bbl
 compiladores.cabal
 *.byte
-*.fd4.out
-*.fd4.err
 */test/*/*.c
 
 .vscode

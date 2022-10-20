@@ -1,0 +1,6 @@
+let test (x:Nat) : Nat =
+  let res : Nat = x+x+x+x in
+  let _ : Nat = print "res = " res in
+  res
+
+let x : Nat = test 999

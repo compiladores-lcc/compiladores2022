@@ -1,0 +1,14 @@
+let inc10 (x:Nat) : Nat =
+  let x:Nat = (fun (x:Nat) -> x+1) x in
+  let x:Nat = (fun (x:Nat) -> x+1) x in
+  let x:Nat = (fun (x:Nat) -> x+1) x in
+  let x:Nat = (fun (x:Nat) -> x+1) x in
+  let x:Nat = (fun (x:Nat) -> x+1) x in
+  let x:Nat = (fun (x:Nat) -> x+1) x in
+  let x:Nat = (fun (x:Nat) -> x+1) x in
+  let x:Nat = (fun (x:Nat) -> x+1) x in
+  let x:Nat = (fun (x:Nat) -> x+1) x in
+  let x:Nat = (fun (x:Nat) -> x+1) x in
+  x
+
+let _ : Nat = print "res = " (inc10 100)

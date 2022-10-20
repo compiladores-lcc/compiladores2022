@@ -1,0 +1,10 @@
+let x : Nat = 1
+let y : Nat = 2 + x
+let f (y:Nat) : Nat = 1 + x
+let suma (x y : Nat) : Nat = x + y
+let suma5 : Nat -> Nat = suma 5
+
+let rec countdown (n:Nat) : Nat = 
+    ifz n then 0 else countdown (n- 1)
+
+let ans:Nat = print (countdown 345 + 7)

@@ -1,0 +1,14 @@
+let test1 (x:Nat) : Nat =
+  1 + x + 1
+
+let test2 (x:Nat) : Nat =
+  1 + x + x + 2
+
+let test3 (x y :Nat) : Nat =
+  1 + x + 2 + y
+
+let test4 (x y :Nat) : Nat =
+  (1 + x) + (2 + y)
+
+let test5 (x y :Nat) : Nat =
+  1 + (x + (2 + y))

@@ -1,0 +1,6 @@
+let test = fun (x:Nat) ->
+  let (res : Nat) = x+x+x+x in
+  let (z : Nat) = print "res = " res in
+  res
+
+let x = test 999
