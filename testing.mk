@@ -1,5 +1,8 @@
-# Tomar todos los archivos FD4 en tests/ok/
-TESTS	:= $(shell find tests/ok/ -name '*.fd4' -type f)
+TESTDIRS += tests/ok/00-basicos
+#TESTDIRS += tests/ok/10-sugar
+#TESTDIRS += tests/ok/20-tysym
+
+TESTS	:= $(shell find $(TESTDIRS) -name '*.fd4' -type f | sort)
 
 # Los binarios. La primer línea es una magia para encontrar el
 # ejecutable que crea stack, porque correr 'stack run' es recontra lento

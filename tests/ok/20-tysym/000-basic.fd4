@@ -1,0 +1,3 @@
+type Mynat = Nat
+
+let x : Mynat = 20
