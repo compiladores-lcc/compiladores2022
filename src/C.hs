@@ -4,6 +4,7 @@ import Prettyprinter.Render.Terminal ( renderStrict )
 import IR
 import Lang
 import Data.Text (unpack)
+import Data.Char ( isAlpha, ord )
 
 ty2doc :: IrTy -> Doc a
 ty2doc IrInt = pretty "uint64_t"
@@ -32,7 +33,15 @@ fd4Main xs = pretty "uint64_t* fd4main()"
         vals2doc (_ : ds)         = vals2doc ds
 
 name :: String -> Doc a
-name n = pretty $ "fd4_"++n    --prefijo fd4 para evitar colision con nombres de C.
+name n = pretty $ "fd4_" ++ escape n    --prefijo fd4 para evitar colision con nombres de C.
+
+-- Convierte nombres con caracteres no válidos en C (como la comilla simple)
+-- a nombres válidos.
+escape = concatMap e1 where
+  e1 :: Char -> String
+  e1 c | c == '_'  = "__"
+       | isAlpha c = [c]
+       | otherwise = "_" ++ show (ord c)
 
 stmt :: Doc a -> Doc a
 stmt x = parens (braces (nest 2 (line <> x <> semi) <> line))
